@@ -1,0 +1,18 @@
+# OpenTofu and Terragrunt runtime files
+**/.terraform/*
+**/.terragrunt-cache/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Local plans and variable files
+*.tfplan
+*.tfvars
+*.tfvars.json
+
+# Local secrets
+.env
+.env.*
+*.pem
+*.key
