@@ -1,0 +1,61 @@
+name: IaC Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "**/*.tf"
+      - "**/*.hcl"
+      - "mise.toml"
+      - ".github/workflows/iac-validation.yml"
+
+  push:
+    branches:
+      - main
+    paths:
+      - "**/*.tf"
+      - "**/*.hcl"
+      - "mise.toml"
+      - ".github/workflows/iac-validation.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iac-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: OpenTofu and Terragrunt
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install OpenTofu and Terragrunt
+        uses: gruntwork-io/terragrunt-action@v3.4.1
+
+      - name: Show tool versions
+        run: |
+          tofu version
+          terragrunt --version
+
+      - name: Check OpenTofu formatting
+        run: tofu fmt -check -recursive
+
+      - name: Check Terragrunt formatting
+        run: terragrunt hcl fmt --check
+
+      - name: Validate OpenTofu module
+        working-directory: infrastructure/modules/github-repository
+        run: |
+          tofu init -backend=false
+          tofu validate
+
+      - name: Validate Terragrunt configuration
+        working-directory: infrastructure/live
+        run: terragrunt hcl validate
