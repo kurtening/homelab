@@ -8,9 +8,9 @@ resource "github_repository" "this" {
   has_wiki        = false
   has_discussions = false
 
-  allow_merge_commit = false
-  allow_squash_merge = true
-  allow_rebase_merge = false
+  allow_merge_commit     = false
+  allow_squash_merge     = true
+  allow_rebase_merge     = false
   delete_branch_on_merge = true
 
   lifecycle {
