@@ -4,20 +4,10 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - "**/*.tf"
-      - "**/*.hcl"
-      - "mise.toml"
-      - ".github/workflows/iac-validation.yml"
 
   push:
     branches:
       - main
-    paths:
-      - "**/*.tf"
-      - "**/*.hcl"
-      - "mise.toml"
-      - ".github/workflows/iac-validation.yml"
 
 permissions:
   contents: read
