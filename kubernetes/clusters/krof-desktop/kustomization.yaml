@@ -4,3 +4,5 @@ kind: Kustomization
 resources:
   - root-application.yaml
   - argocd-application.yaml
+  - whoami-application.yaml
+  
