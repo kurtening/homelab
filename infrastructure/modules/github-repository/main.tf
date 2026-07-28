@@ -50,6 +50,10 @@ resource "github_repository_ruleset" "main" {
       required_check {
         context = "OpenTofu and Terragrunt"
       }
+
+      required_check {
+        context = "Kubernetes manifests"
+      }
     }
   }
 }
