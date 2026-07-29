@@ -6,6 +6,4 @@ namespace: whoami
 resources:
   - deployment.yaml
   - service.yaml
-  - middleware.yaml
-  - ingress.yaml
   - tailscale-ingress.yaml

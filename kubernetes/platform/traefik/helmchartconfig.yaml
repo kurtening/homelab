@@ -7,11 +7,4 @@ spec:
   valuesContent: |-
     service:
       spec:
-        type: NodePort
-        externalTrafficPolicy: Local
-
-    ports:
-      web:
-        nodePort: 31799
-      websecure:
-        nodePort: 32025
+        type: ClusterIP
