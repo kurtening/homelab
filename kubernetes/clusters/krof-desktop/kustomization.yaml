@@ -6,3 +6,4 @@ resources:
   - argocd-application.yaml
   - whoami-application.yaml
   - traefik-config-application.yaml
+  - tailscale-operator-application.yaml
