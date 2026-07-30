@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: immich-storage
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/kurtening/homelab.git
+    targetRevision: main
+    path: kubernetes/clusters/krof-desktop/storage/immich
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+
+  syncPolicy:
+    automated:
+      enabled: true
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - Prune=false
+      - Delete=false
