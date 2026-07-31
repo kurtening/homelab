@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Immich backup daily
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+AccuracySec=1m
+Unit=immich-restic-backup.service
+
+[Install]
+WantedBy=timers.target
