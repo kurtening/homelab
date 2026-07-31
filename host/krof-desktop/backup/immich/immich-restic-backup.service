@@ -1,9 +1,10 @@
 [Unit]
 Description=Immich Restic backup
 RequiresMountsFor=/mnt/data-drive-2tb /mnt/backup
+Wants=k3s.service
+After=local-fs.target k3s.service
 ConditionPathIsMountPoint=/mnt/data-drive-2tb
 ConditionPathIsMountPoint=/mnt/backup
-After=local-fs.target
 
 [Service]
 Type=oneshot
@@ -15,7 +16,9 @@ ExecStart=/usr/local/sbin/immich-restic-backup
 
 CacheDirectory=restic-immich
 CacheDirectoryMode=0700
+Environment=HOME=/var/cache/restic-immich
 Environment=RESTIC_CACHE_DIR=/var/cache/restic-immich
+Environment=KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
 Nice=10
 IOSchedulingClass=best-effort
@@ -27,6 +30,7 @@ ProtectHome=true
 ProtectSystem=strict
 
 ReadOnlyPaths=/mnt/data-drive-2tb/homelab/immich
+ReadWritePaths=/mnt/data-drive-2tb/homelab/immich/database-dumps
 ReadWritePaths=/mnt/backup/homelab/immich/repository
 
 TimeoutStartSec=12h

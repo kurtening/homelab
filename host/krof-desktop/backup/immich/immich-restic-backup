@@ -12,9 +12,19 @@ BACKUP_UUID="3180031e-abd5-4d6a-8aac-abe3e41dc950"
 DATA_ROOT="${DATA_MOUNT}/homelab/immich"
 LIBRARY_PATH="${DATA_ROOT}/library"
 DATABASE_DUMPS_PATH="${DATA_ROOT}/database-dumps"
+DATABASE_DUMP_PATH="${DATABASE_DUMPS_PATH}/immich-postgres.sql.gz"
 
 RESTIC_REPOSITORY="${BACKUP_MOUNT}/homelab/immich/repository"
 RESTIC_PASSWORD_FILE="/etc/restic/immich-password"
+
+K3S_BIN="/usr/local/bin/k3s"
+POSTGRES_NAMESPACE="immich"
+POSTGRES_POD="immich-postgres-0"
+POSTGRES_CONTAINER="postgres"
+POSTGRES_DATABASE="immich"
+POSTGRES_USER="postgres"
+
+DUMP_TEMP_PATH=""
 
 export RESTIC_REPOSITORY
 export RESTIC_PASSWORD_FILE
@@ -28,6 +38,14 @@ die() {
   exit 1
 }
 
+cleanup() {
+  if [[ -n "${DUMP_TEMP_PATH}" && -e "${DUMP_TEMP_PATH}" ]]; then
+    rm -f -- "${DUMP_TEMP_PATH}"
+  fi
+}
+
+trap cleanup EXIT
+
 verify_mount() {
   local mount_path="$1"
   local expected_uuid="$2"
@@ -38,9 +56,17 @@ verify_mount() {
   mountpoint --quiet "${mount_path}" ||
     die "${mount_path} is not a mount point"
 
-  source_device="$(findmnt --raw --noheadings --target "${mount_path}" --output SOURCE)"
-  filesystem="$(findmnt --raw --noheadings --target "${mount_path}" --output FSTYPE)"
-  actual_uuid="$(blkid --match-tag UUID --output value "${source_device}")"
+  source_device="$(
+    findmnt --raw --noheadings --target "${mount_path}" --output SOURCE
+  )"
+
+  filesystem="$(
+    findmnt --raw --noheadings --target "${mount_path}" --output FSTYPE
+  )"
+
+  actual_uuid="$(
+    blkid --match-tag UUID --output value "${source_device}"
+  )"
 
   [[ "${filesystem}" == "ext4" ]] ||
     die "${mount_path} uses ${filesystem}, expected ext4"
@@ -66,10 +92,57 @@ verify_mount "${BACKUP_MOUNT}" "${BACKUP_UUID}"
 [[ -r "${RESTIC_PASSWORD_FILE}" ]] ||
   die "Restic password file is unavailable"
 
+[[ -x "${K3S_BIN}" ]] ||
+  die "K3s binary is unavailable: ${K3S_BIN}"
+
+command -v gzip >/dev/null ||
+  die "gzip is unavailable"
+
+log "Waiting for PostgreSQL"
+
+"${K3S_BIN}" kubectl \
+  --namespace "${POSTGRES_NAMESPACE}" \
+  wait \
+  --for=condition=Ready \
+  "pod/${POSTGRES_POD}" \
+  --timeout=10m
+
+DUMP_TEMP_PATH="$(
+  mktemp "${DATABASE_DUMPS_PATH}/.immich-postgres.sql.gz.tmp.XXXXXX"
+)"
+
+log "Creating fresh PostgreSQL dump"
+
+"${K3S_BIN}" kubectl \
+  --namespace "${POSTGRES_NAMESPACE}" \
+  exec "${POSTGRES_POD}" \
+  --container "${POSTGRES_CONTAINER}" \
+  -- \
+  pg_dump \
+    --clean \
+    --if-exists \
+    --dbname="${POSTGRES_DATABASE}" \
+    --username="${POSTGRES_USER}" |
+  gzip -9 >"${DUMP_TEMP_PATH}"
+
+[[ -s "${DUMP_TEMP_PATH}" ]] ||
+  die "PostgreSQL dump is empty"
+
+gzip --test "${DUMP_TEMP_PATH}" ||
+  die "PostgreSQL dump failed gzip validation"
+
+mv -- "${DUMP_TEMP_PATH}" "${DATABASE_DUMP_PATH}"
+DUMP_TEMP_PATH=""
+
+chmod 0600 "${DATABASE_DUMP_PATH}"
+
+log "Fresh PostgreSQL dump created: ${DATABASE_DUMP_PATH}"
+
 log "Validating Restic repository"
 restic snapshots >/dev/null
 
 log "Creating Immich snapshot"
+
 cd "${DATA_ROOT}"
 
 restic backup \
@@ -80,6 +153,7 @@ restic backup \
   database-dumps
 
 log "Applying retention policy"
+
 restic forget \
   --host krof-desktop \
   --tag immich \
