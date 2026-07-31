@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+umask 077
+
+DATA_MOUNT="/mnt/data-drive-2tb"
+BACKUP_MOUNT="/mnt/backup"
+
+DATA_UUID="cb3505ce-970c-49c2-ad50-4bc07ddbe508"
+BACKUP_UUID="3180031e-abd5-4d6a-8aac-abe3e41dc950"
+
+DATA_ROOT="${DATA_MOUNT}/homelab/immich"
+LIBRARY_PATH="${DATA_ROOT}/library"
+DATABASE_DUMPS_PATH="${DATA_ROOT}/database-dumps"
+
+RESTIC_REPOSITORY="${BACKUP_MOUNT}/homelab/immich/repository"
+RESTIC_PASSWORD_FILE="/etc/restic/immich-password"
+
+export RESTIC_REPOSITORY
+export RESTIC_PASSWORD_FILE
+
+log() {
+  printf '%s %s\n' "$(date --iso-8601=seconds)" "$*"
+}
+
+die() {
+  log "ERROR: $*"
+  exit 1
+}
+
+verify_mount() {
+  local mount_path="$1"
+  local expected_uuid="$2"
+  local source_device
+  local actual_uuid
+  local filesystem
+
+  mountpoint --quiet "${mount_path}" ||
+    die "${mount_path} is not a mount point"
+
+  source_device="$(findmnt --raw --noheadings --target "${mount_path}" --output SOURCE)"
+  filesystem="$(findmnt --raw --noheadings --target "${mount_path}" --output FSTYPE)"
+  actual_uuid="$(blkid --match-tag UUID --output value "${source_device}")"
+
+  [[ "${filesystem}" == "ext4" ]] ||
+    die "${mount_path} uses ${filesystem}, expected ext4"
+
+  [[ "${actual_uuid}" == "${expected_uuid}" ]] ||
+    die "${mount_path} UUID is ${actual_uuid}, expected ${expected_uuid}"
+}
+
+log "Validating storage mounts"
+
+verify_mount "${DATA_MOUNT}" "${DATA_UUID}"
+verify_mount "${BACKUP_MOUNT}" "${BACKUP_UUID}"
+
+[[ -d "${LIBRARY_PATH}" ]] ||
+  die "Missing source directory: ${LIBRARY_PATH}"
+
+[[ -d "${DATABASE_DUMPS_PATH}" ]] ||
+  die "Missing source directory: ${DATABASE_DUMPS_PATH}"
+
+[[ -d "${RESTIC_REPOSITORY}" ]] ||
+  die "Missing Restic repository: ${RESTIC_REPOSITORY}"
+
+[[ -r "${RESTIC_PASSWORD_FILE}" ]] ||
+  die "Restic password file is unavailable"
+
+log "Validating Restic repository"
+restic snapshots >/dev/null
+
+log "Creating Immich snapshot"
+cd "${DATA_ROOT}"
+
+restic backup \
+  --host krof-desktop \
+  --tag immich \
+  --one-file-system \
+  library \
+  database-dumps
+
+log "Applying retention policy"
+restic forget \
+  --host krof-desktop \
+  --tag immich \
+  --group-by host,paths,tags \
+  --keep-daily 7 \
+  --keep-weekly 4 \
+  --keep-monthly 6 \
+  --prune
+
+log "Checking repository structure"
+restic check
+
+log "Immich backup completed successfully"
