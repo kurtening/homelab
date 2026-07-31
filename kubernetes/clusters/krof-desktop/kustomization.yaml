@@ -8,3 +8,4 @@ resources:
   - traefik-config-application.yaml
   - tailscale-operator-application.yaml
   - immich-storage-application.yaml
+  - immich-application.yaml
