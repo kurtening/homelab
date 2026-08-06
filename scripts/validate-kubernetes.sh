@@ -89,9 +89,12 @@ stringData:
   value: disposable-test-value
 EOF
 
-SOPS_AGE_RECIPIENTS="$smoke_recipient" sops encrypt \
-  --encrypted-regex '^(data|stringData)$' \
-  "$smoke_dir/secret.yaml" >"$smoke_dir/secret.sops.yaml"
+(
+  cd "$smoke_dir"
+  SOPS_AGE_RECIPIENTS="$smoke_recipient" sops encrypt \
+    --encrypted-regex '^(data|stringData)$' \
+    secret.yaml >secret.sops.yaml
+)
 
 cat >"$smoke_dir/secret-generator.yaml" <<'EOF'
 apiVersion: viaduct.ai/v1
