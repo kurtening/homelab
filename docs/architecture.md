@@ -62,6 +62,7 @@ Relevant repository areas include:
 | `host/krof-desktop/backup/immich/` | host-level Immich backup assets |
 | `infrastructure/` | OpenTofu/Terragrunt GitHub repository governance |
 | `scripts/` | repository validation helpers |
+| `docs/secret-management.md` | SOPS/age bootstrap, validation, and recovery procedure |
 
 ## Deployment contract
 
@@ -165,6 +166,18 @@ Current manually provisioned secrets include:
 
 Azure backend authentication and GitHub provider credentials are also supplied outside the repository. Names and non-secret key structure may appear in manifests; their values must not.
 
+The repository includes a SOPS/age and KSOPS foundation for moving Kubernetes
+Secrets into encrypted GitOps management. Argo CD's repo-server receives KSOPS
+through an init container and reads its age identity from the manually
+bootstrapped `argocd/sops-age` Secret. Enabling Kustomize exec plugins makes
+merged repository content part of the repo-server trust boundary, so encrypted
+manifest changes require the same review discipline as executable code.
+
+This foundation does not by itself adopt the Tailscale or Immich credentials.
+Until encrypted Secret resources are connected through child Applications,
+those two resources remain manual prerequisites. The Restic password and
+infrastructure-provider credentials are not part of this Kubernetes migration.
+
 ## Host-level services
 
 Not every service belongs in Kubernetes. Host Tailscale and Sunshine are intended to remain host-level because they provide access to, or depend directly on, the desktop itself. Their installation and live state are not managed by this repository and must be verified on the host.
@@ -173,9 +186,9 @@ The Immich backup assets are likewise host-level. A merge changes the recorded f
 
 ## Validation
 
-Pinned local development tools are declared in `mise.toml`. Kubernetes manifests are rendered with `kubectl kustomize` and checked with `kubeconform` by `scripts/validate-kubernetes.sh` and GitHub Actions.
+Pinned local development tools are declared in `mise.toml`. Kubernetes manifests are rendered with standalone Kustomize and checked with `kubeconform` by `scripts/validate-kubernetes.sh` and GitHub Actions. The same Kustomize alpha-plugin and exec flags are used by local validation and Argo CD.
 
-Kubernetes validation does not require access to a live cluster. It does require network access because the Argo CD Kustomization uses a remote pinned manifest and schema validation uses remote catalogs.
+Kubernetes validation does not require access to a live cluster. It does require network access because the Argo CD Kustomization uses a remote pinned manifest and schema validation uses remote catalogs. Public CI has no production age identity: it checks ciphertext, runs a disposable SOPS/KSOPS test, and cannot authenticate or schema-validate decrypted production Secret content.
 
 The IaC workflow checks formatting, initializes and validates the standalone OpenTofu module without a backend, and validates Terragrunt HCL. It does not authenticate to or compare against live infrastructure.
 

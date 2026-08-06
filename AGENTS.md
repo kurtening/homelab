@@ -67,6 +67,17 @@ Current sensitive dependencies kept outside Git include:
 - the Restic password file
 - credentials used by the GitHub provider and Azure state backend
 
+The repository supports SOPS-encrypted Kubernetes Secret manifests through
+KSOPS. Public age recipients and SOPS ciphertext may be committed; age private
+identities may not. When handling encrypted Secrets:
+
+- never write plaintext into the repository or print decrypted/base64 values
+- use a mode-`0700` temporary directory outside the worktree and clean it up
+- preserve existing live values unless credential rotation is explicitly requested
+- verify SOPS ciphertext status and perform silent byte-for-byte comparisons
+- keep re-encryption, age-recipient changes, and application credential rotation
+  as distinct operations
+
 Tailscale ACLs or grants, tag ownership, DNS and certificate behavior, OAuth provisioning, and host Tailscale configuration are external to this repository. Do not infer their live state from the Kubernetes manifests.
 
 ## Storage and backups
@@ -91,7 +102,12 @@ For Kubernetes manifest changes, run:
 mise exec -- ./scripts/validate-kubernetes.sh
 ```
 
-This renders manifests and validates schemas without contacting a live cluster. It requires network access for the remote Argo CD manifest and schema catalogs.
+This renders manifests and validates schemas without contacting a live cluster.
+It requires network access for the remote Argo CD manifest and schema catalogs.
+Without `SOPS_AGE_KEY_FILE`, production secret Kustomizations are not rendered;
+the script instead verifies ciphertext and runs a disposable KSOPS smoke test.
+Full production-secret validation requires the protected age identity and must
+never expose its decrypted output.
 
 For OpenTofu/Terragrunt changes, mirror `.github/workflows/iac-validation.yml`:
 

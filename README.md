@@ -89,6 +89,8 @@ the formatting and validation commands mirrored from the IaC workflow.
 
 - [Architecture](docs/architecture.md) explains ownership, reconciliation,
   networking, storage, backups, and trust boundaries.
+- [Secret management](docs/secret-management.md) covers SOPS/age custody,
+  Argo CD bootstrap, validation, and recovery.
 - [Agent instructions](AGENTS.md) define repository-wide change and validation
   safeguards.
 - [Contributing](CONTRIBUTING.md) describes the contribution workflow.
