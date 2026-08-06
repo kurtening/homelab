@@ -14,6 +14,12 @@ The following should never be committed:
 - private hostnames, addresses, or personal information
 - unredacted application configuration containing credentials
 
+SOPS-encrypted Kubernetes manifests and public age recipients beginning with
+`age1` may be committed. Before committing an encrypted manifest, verify that
+SOPS reports it as encrypted and that no age identity or plaintext value appears
+in the diff. Encryption is not credential rotation; exposed credentials must be
+rotated separately.
+
 ## Reporting a Security Issue
 
 Do not open a public issue containing sensitive information.

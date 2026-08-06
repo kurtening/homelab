@@ -6,3 +6,7 @@ namespace: argocd
 resources:
   - namespace.yaml
   - https://raw.githubusercontent.com/argoproj/argo-cd/v3.4.5/manifests/install.yaml
+
+patches:
+  - path: argocd-cm-patch.yaml
+  - path: argocd-repo-server-ksops-patch.yaml
