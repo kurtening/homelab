@@ -60,10 +60,15 @@ Never commit:
 
 Generic Kubernetes resource names, public repository URLs, required storage paths, and other deliberately tracked non-secret configuration are not credentials. Do not remove or obscure existing required configuration as incidental security cleanup; evaluate questionable identifiers against `SECURITY.md` and ask before broadening what the public repository exposes.
 
+The Tailscale operator OAuth Secret and Immich database Secret are managed as
+SOPS ciphertext under `kubernetes/secrets/` and rendered by dedicated Argo CD
+child Applications. Handle their plaintext values only through protected
+age-identity workflows and in the live cluster.
+
 Current sensitive dependencies kept outside Git include:
 
-- the Tailscale operator OAuth Secret
-- the Immich database Secret
+- the SOPS age private identity and the manually bootstrapped
+  `argocd/sops-age` copy
 - the Restic password file
 - credentials used by the GitHub provider and Azure state backend
 

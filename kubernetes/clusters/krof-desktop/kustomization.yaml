@@ -6,6 +6,8 @@ resources:
   - argocd-application.yaml
   - whoami-application.yaml
   - traefik-config-application.yaml
+  - tailscale-secrets-application.yaml
   - tailscale-operator-application.yaml
+  - immich-secrets-application.yaml
   - immich-storage-application.yaml
   - immich-application.yaml
