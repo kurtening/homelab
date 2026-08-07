@@ -26,7 +26,8 @@ The repository contains several configuration models with different delivery beh
 | Kubernetes applications and platform | `kubernetes/` on GitHub `main` | Argo CD reconciles automatically |
 | GitHub repository governance | `infrastructure/` | OpenTofu/Terragrunt is planned and applied manually |
 | K3s, mounts, and host services | host state plus selected files under `host/` | installed and maintained manually |
-| Kubernetes and Restic credentials | names and consumers only | provisioned outside Git |
+| Kubernetes application credentials | SOPS ciphertext under `kubernetes/secrets/` | Argo CD renders them with KSOPS after a manual age-identity bootstrap |
+| Restic and infrastructure credentials | names and consumers only | provisioned outside Git |
 | Tailnet policy and host Tailscale | not represented | configured outside this repository |
 
 GitHub `main` is therefore the desired-state source for Argo-managed Kubernetes resources and the recorded configuration for manually applied components. A merge does not prove that host, infrastructure, credential, or tailnet state has changed.
@@ -58,6 +59,7 @@ Relevant repository areas include:
 | `kubernetes/bootstrap/argocd/` | pinned Argo CD installation resources |
 | `kubernetes/clusters/krof-desktop/` | cluster root and child Argo CD Applications |
 | `kubernetes/apps/` | application manifests such as Immich and whoami |
+| `kubernetes/secrets/` | SOPS-encrypted Kubernetes Secret resources rendered by KSOPS |
 | `kubernetes/platform/traefik/` | K3s Traefik configuration |
 | `host/krof-desktop/backup/immich/` | host-level Immich backup assets |
 | `infrastructure/` | OpenTofu/Terragrunt GitHub repository governance |
@@ -72,7 +74,7 @@ The declared configuration assumes that an operator has already provided:
 - the data and backup filesystems mounted at the paths expected by the manifests and backup script
 - the Immich library, PostgreSQL, and database-dump directories with suitable ownership and permissions
 - an initialized Restic repository and readable password file
-- the required Kubernetes Secrets in their destination namespaces
+- the SOPS age identity and manually bootstrapped `argocd/sops-age` Secret
 - network access to GitHub, the Tailscale Helm repository, the remote Argo CD manifest, and validation schema catalogs
 - Azure and GitHub authentication when planning or applying repository-governance infrastructure
 
@@ -121,7 +123,9 @@ Immich is deployed from `kubernetes/apps/immich/` and currently consists of:
 
 Container versions, probes, and resource requests and limits are defined in the manifests; inspect the current files rather than copying versions from documentation.
 
-The server and PostgreSQL both consume the manually provisioned `immich-database` Kubernetes Secret.
+The server and PostgreSQL both consume the `immich-database` Kubernetes Secret,
+which is reconciled from SOPS ciphertext by the `immich-secrets` child
+Application.
 
 ## Backups and recovery
 
@@ -156,27 +160,30 @@ State is stored in an Azure backend and authentication uses operator-provided Az
 
 The repository is public, so plaintext credentials and sensitive private infrastructure details must never be committed.
 
-Current manually provisioned secrets include:
+Secret ownership is split across the encrypted GitOps path and external host or
+provider custody:
 
-| Location | Secret | Purpose |
+| Location | Secret | Ownership |
 | --- | --- | --- |
-| `tailscale` namespace | `operator-oauth` | Tailscale Kubernetes Operator OAuth client |
-| `immich` namespace | `immich-database` | Immich and PostgreSQL database password |
-| host | Restic password file | unlock the local Restic repository |
+| `tailscale` namespace | `operator-oauth` | `tailscale-secrets` Argo CD Application from SOPS ciphertext |
+| `immich` namespace | `immich-database` | `immich-secrets` Argo CD Application from SOPS ciphertext |
+| `argocd` namespace | `sops-age` | manually bootstrapped from the protected age identity |
+| host | Restic password file | provisioned outside Git |
 
 Azure backend authentication and GitHub provider credentials are also supplied outside the repository. Names and non-secret key structure may appear in manifests; their values must not.
 
-The repository includes a SOPS/age and KSOPS foundation for moving Kubernetes
-Secrets into encrypted GitOps management. Argo CD's repo-server receives KSOPS
-through an init container and reads its age identity from the manually
-bootstrapped `argocd/sops-age` Secret. Enabling Kustomize exec plugins makes
-merged repository content part of the repo-server trust boundary, so encrypted
-manifest changes require the same review discipline as executable code.
+Argo CD's repo-server receives KSOPS through an init container and reads its age
+identity from the manually bootstrapped `argocd/sops-age` Secret. Dedicated
+`tailscale-secrets` and `immich-secrets` child Applications render the encrypted
+resources. Root-Application sync-wave ordering creates these child Applications
+before their consumer Applications. The Secret resources also carry
+`Prune=false,Delete=false` protection.
 
-This foundation does not by itself adopt the Tailscale or Immich credentials.
-Until encrypted Secret resources are connected through child Applications,
-those two resources remain manual prerequisites. The Restic password and
-infrastructure-provider credentials are not part of this Kubernetes migration.
+Enabling Kustomize exec plugins makes merged repository content part of the
+repo-server trust boundary, so encrypted manifest changes require the same
+review discipline as executable code. The Restic password and
+infrastructure-provider credentials are not part of this Kubernetes secret
+management path.
 
 ## Host-level services
 

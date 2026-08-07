@@ -4,8 +4,22 @@ Kubernetes Secrets may be stored in this public repository only as SOPS
 ciphertext. SOPS encrypts the Secret values for a dedicated age recipient, and
 KSOPS decrypts the resources while Argo CD renders their Kustomizations.
 
-This document covers the encryption foundation and its operational boundary.
-It does not authorize credential rotation or deletion.
+This document covers the managed Kubernetes Secrets and their operational
+boundary. It does not authorize credential rotation or deletion.
+
+## Managed Secrets
+
+| Argo CD Application | Encrypted path | Live Secret |
+| --- | --- | --- |
+| `tailscale-secrets` | `kubernetes/secrets/tailscale/operator-oauth.sops.yaml` | `tailscale/operator-oauth` |
+| `immich-secrets` | `kubernetes/secrets/immich/immich-database.sops.yaml` | `immich/immich-database` |
+
+Both child Applications have sync wave `-1`, while the encrypted Secret
+resources use `Prune=false,Delete=false`. The ordering creates the secret child
+Applications before their consumers during root synchronization; the retention
+annotations protect live credentials during rollback or Application removal.
+Neither mechanism replaces health verification during bootstrap or provides a
+backup of the age identity.
 
 ## Trust and custody
 
@@ -55,6 +69,9 @@ When importing a live Secret, use a mode-`0700` temporary directory, redirect
 all exports to files, strip cluster-generated metadata, encrypt directly to the
 final `.sops.yaml` path, and compare the decrypted `.data` objects silently.
 Never put plaintext or a base64 value in the worktree or command output.
+Preserve the live resource name, namespace, type, key set, and encoded data
+byte-for-byte. Importing an existing Secret into encrypted management must not
+rotate its credential.
 
 ## Validation model
 

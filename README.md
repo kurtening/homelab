@@ -18,14 +18,15 @@ ingress, and OpenTofu/Terragrunt records the repository's GitHub governance.
 | Kubernetes | Single-node K3s | Host installation and initial bootstrap are manual |
 | GitOps | Argo CD app-of-apps | Kubernetes resources reconcile automatically from `main` |
 | Applications | Immich and `whoami` | Declared under `kubernetes/apps/` |
-| Private ingress | Tailscale Kubernetes Operator | Credentials and tailnet policy are managed outside Git |
+| Private ingress | Tailscale Kubernetes Operator | OAuth Secret is SOPS-encrypted in Git; tailnet policy remains external |
 | Persistent storage | Static local Immich PVs | Retained and bound to `krof-desktop` |
 | Backups | PostgreSQL dump and Restic snapshot | Local only; no tested cold restore or off-machine copy |
 | Repository policy | OpenTofu/Terragrunt | Planned and applied manually with remote state |
 
 Only Argo-managed Kubernetes resources change automatically after a merge.
-K3s, host files, mounts, backup installation, infrastructure applies,
-credentials, and tailnet configuration remain manual operations.
+K3s, host files, mounts, backup installation, infrastructure applies, the SOPS
+age bootstrap, Restic credentials, and tailnet configuration remain manual
+operations.
 
 ## Repository layout
 
@@ -37,7 +38,8 @@ credentials, and tailnet configuration remain manual operations.
 │   ├── apps/                     # Application manifests
 │   ├── bootstrap/argocd/         # Pinned Argo CD installation
 │   ├── clusters/krof-desktop/    # App-of-apps and retained local storage
-│   └── platform/                 # K3s platform overrides
+│   ├── platform/                 # K3s platform overrides
+│   └── secrets/                  # SOPS-encrypted Kubernetes Secrets
 ├── docs/architecture.md          # Detailed current architecture
 └── scripts/                      # Repository validation helpers
 ```
@@ -48,7 +50,7 @@ The declared configuration assumes an operator has already provided:
 
 - `krof-desktop` with K3s, the local-path provisioner, and packaged Traefik
 - the expected data and backup filesystems, directories, ownership, and mounts
-- the required Kubernetes Secrets and Restic repository password
+- the SOPS age identity and bootstrap Secret, plus the Restic repository password
 - an initialized Restic repository on the backup mount
 - access to GitHub, the Tailscale Helm repository, and validation schema hosts
 - Azure and GitHub authentication for repository-governance changes
@@ -60,7 +62,7 @@ before allowing the root Argo CD Application to reconcile dependent workloads.
 ## Known recovery gaps
 
 - Host and K3s provisioning are not automated.
-- Kubernetes and host credentials require independent recovery.
+- The SOPS age identity and host credentials require independent recovery.
 - The Restic repository is local to the same desktop and has no off-machine
   copy.
 - No cold-restore drill has proven recovery of PostgreSQL, media, credentials,
