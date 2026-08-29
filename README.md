@@ -17,10 +17,10 @@ ingress, and OpenTofu/Terragrunt records the repository's GitHub governance.
 | --- | --- | --- |
 | Kubernetes | Single-node K3s | Host installation and initial bootstrap are manual |
 | GitOps | Argo CD app-of-apps | Kubernetes resources reconcile automatically from `main` |
-| Applications | Immich and `whoami` | Declared under `kubernetes/apps/` |
+| Applications | Immich, Minecraft, and `whoami` | Declared under `kubernetes/apps/`; Minecraft is staged at zero replicas |
 | Private ingress | Tailscale Kubernetes Operator | OAuth Secret is SOPS-encrypted in Git; tailnet policy remains external |
-| Persistent storage | Static local Immich PVs | Retained and bound to `krof-desktop` |
-| Backups | PostgreSQL dump and Restic snapshot | Local only; no tested cold restore or off-machine copy |
+| Persistent storage | Static local Immich and Minecraft PVs | Retained and bound to `krof-desktop` |
+| Backups | Application-consistent Restic snapshots | Host installation is manual; local only with no tested cold restore or off-machine copy |
 | Repository policy | OpenTofu/Terragrunt | Planned and applied manually with remote state |
 
 Only Argo-managed Kubernetes resources change automatically after a merge.
@@ -50,8 +50,9 @@ The declared configuration assumes an operator has already provided:
 
 - `krof-desktop` with K3s, the local-path provisioner, and packaged Traefik
 - the expected data and backup filesystems, directories, ownership, and mounts
-- the SOPS age identity and bootstrap Secret, plus the Restic repository password
-- an initialized Restic repository on the backup mount
+- the SOPS age identity and bootstrap Secret, plus application-specific Restic passwords
+- initialized Restic repositories on the backup mount
+- the untracked Minecraft seed Secret before the Minecraft Deployment is activated
 - access to GitHub, the Tailscale Helm repository, and validation schema hosts
 - Azure and GitHub authentication for repository-governance changes
 
@@ -93,6 +94,8 @@ the formatting and validation commands mirrored from the IaC workflow.
   networking, storage, backups, and trust boundaries.
 - [Secret management](docs/secret-management.md) covers SOPS/age custody,
   Argo CD bootstrap, validation, and recovery.
+- [Minecraft](docs/minecraft.md) covers the staged server, private access,
+  seed bootstrap, whitelist administration, backups, and activation.
 - [Agent instructions](AGENTS.md) define repository-wide change and validation
   safeguards.
 - [Contributing](CONTRIBUTING.md) describes the contribution workflow.
