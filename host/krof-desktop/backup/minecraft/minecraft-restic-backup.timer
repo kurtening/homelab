@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Minecraft backup daily
+
+[Timer]
+OnCalendar=*-*-* 05:30:00
+Persistent=true
+AccuracySec=1m
+Unit=minecraft-restic-backup.service
+
+[Install]
+WantedBy=timers.target

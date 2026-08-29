@@ -11,3 +11,5 @@ resources:
   - immich-secrets-application.yaml
   - immich-storage-application.yaml
   - immich-application.yaml
+  - minecraft-storage-application.yaml
+  - minecraft-application.yaml

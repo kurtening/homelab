@@ -61,7 +61,7 @@ Relevant repository areas include:
 | `kubernetes/apps/` | application manifests such as Immich and whoami |
 | `kubernetes/secrets/` | SOPS-encrypted Kubernetes Secret resources rendered by KSOPS |
 | `kubernetes/platform/traefik/` | K3s Traefik configuration |
-| `host/krof-desktop/backup/immich/` | host-level Immich backup assets |
+| `host/krof-desktop/backup/` | host-level application backup assets |
 | `infrastructure/` | OpenTofu/Terragrunt GitHub repository governance |
 | `scripts/` | repository validation helpers |
 | `docs/secret-management.md` | SOPS/age bootstrap, validation, and recovery procedure |
@@ -73,7 +73,9 @@ The declared configuration assumes that an operator has already provided:
 - a host named `krof-desktop` with K3s, its `local-path` provisioner, and packaged Traefik
 - the data and backup filesystems mounted at the paths expected by the manifests and backup script
 - the Immich library, PostgreSQL, and database-dump directories with suitable ownership and permissions
-- an initialized Restic repository and readable password file
+- the Minecraft data directory with UID/GID 1000 ownership before its local PV is used
+- initialized application-specific Restic repositories and readable password files
+- the untracked `minecraft/minecraft-bootstrap` seed Secret before Minecraft activation
 - the SOPS age identity and manually bootstrapped `argocd/sops-age` Secret
 - network access to GitHub, the Tailscale Helm repository, the remote Argo CD manifest, and validation schema catalogs
 - Azure and GitHub authentication when planning or applying repository-governance infrastructure
@@ -84,7 +86,7 @@ These prerequisites are not automated here. This is a dependency boundary, not a
 
 Tailscale is the intended private network boundary for remote application access.
 
-The Tailscale Kubernetes Operator is deployed as an Argo CD Application from the official Tailscale Helm repository. Tailscale-managed Ingress resources expose `whoami` and the Immich server through private HTTPS endpoints.
+The Tailscale Kubernetes Operator is deployed as an Argo CD Application from the official Tailscale Helm repository. Tailscale-managed Ingress resources expose `whoami` and the Immich server through private HTTPS endpoints. A Tailscale LoadBalancer Service exposes Minecraft as a private Layer 3 TCP service without allocating a Kubernetes NodePort.
 
 Traefik remains installed as part of K3s but its Service is configured as `ClusterIP`. The previous Traefik NodePort fallback was temporary and has been removed.
 
@@ -109,6 +111,11 @@ The protected storage resources are managed by the separate `immich-storage` Arg
 
 The machine-learning model cache uses regular K3s local-path storage because it is reproducible cache data rather than primary family data.
 
+Minecraft uses a separate retained local volume at
+`/mnt/data-drive-2tb/homelab/minecraft`. The PV advertises 100 GiB, but that
+value controls Kubernetes binding rather than filesystem quota. The world is
+tied to `krof-desktop` and cannot fail over without a storage migration.
+
 ## Immich
 
 Immich is deployed from `kubernetes/apps/immich/` and currently consists of:
@@ -126,6 +133,25 @@ Container versions, probes, and resource requests and limits are defined in the 
 The server and PostgreSQL both consume the `immich-database` Kubernetes Secret,
 which is reconciled from SOPS ciphertext by the `immich-secrets` child
 Application.
+
+## Minecraft
+
+Minecraft is represented as a singleton Fabric Deployment with a retained PVC
+and a Tailscale Layer 3 Service. The initial Deployment is staged at zero
+replicas so the host directory, private seed, backup repository, and tailnet
+authorization can be verified before the world is generated.
+
+The server pins Minecraft, Fabric, its container image, and a small set of
+server-compatible performance and quality-of-life mods. Players use a pinned
+Fabulously Optimized client pack, but the server remains compatible with
+unmodified clients of the same Minecraft version. Online authentication and an
+enforced Minecraft whitelist are required even though network reachability is
+limited to the tailnet.
+
+The world seed is an untracked `minecraft-bootstrap` Kubernetes Secret rather
+than repository content. Player names and operator assignments are also managed
+as live application state and must not be committed. Activation and version
+upgrades are separate reviewed GitOps changes described in `docs/minecraft.md`.
 
 ## Backups and recovery
 
@@ -145,6 +171,12 @@ The backup process:
 The Restic repository is stored under `/mnt/backup/homelab/immich/repository`. Its password is a host credential outside Git. The reproducible machine-learning cache is not backed up.
 
 The database dump is consistent when created, but Immich remains available while Restic reads the library. The database dump and media snapshot are therefore not guaranteed to represent one atomic point in time.
+
+Minecraft uses a separate host-level Restic job scheduled for 05:30 local time.
+It validates the same two storage devices, uses in-container RCON to suspend and
+flush world saves, snapshots the full Minecraft data directory, resumes saves,
+applies the same 7-daily/4-weekly/6-monthly retention policy, and runs
+`restic check`. The exit trap attempts to resume saves if the backup fails.
 
 `restic check` validates repository structure; it does not prove that the application can be restored. The repository has no tested cold-restore procedure, automated secret recovery, or off-machine backup. Protection from primary-disk failure is conditional on `/mnt/backup` being an independent healthy device. A device inside the same desktop still does not protect against theft, fire, total-machine loss, or every malware and electrical failure scenario.
 
@@ -167,8 +199,9 @@ provider custody:
 | --- | --- | --- |
 | `tailscale` namespace | `operator-oauth` | `tailscale-secrets` Argo CD Application from SOPS ciphertext |
 | `immich` namespace | `immich-database` | `immich-secrets` Argo CD Application from SOPS ciphertext |
+| `minecraft` namespace | `minecraft-bootstrap` seed | manually created before activation and never stored in Git |
 | `argocd` namespace | `sops-age` | manually bootstrapped from the protected age identity |
-| host | Restic password file | provisioned outside Git |
+| host | application-specific Restic password files | provisioned outside Git |
 
 Azure backend authentication and GitHub provider credentials are also supplied outside the repository. Names and non-secret key structure may appear in manifests; their values must not.
 
@@ -189,7 +222,9 @@ management path.
 
 Not every service belongs in Kubernetes. Host Tailscale and Sunshine are intended to remain host-level because they provide access to, or depend directly on, the desktop itself. Their installation and live state are not managed by this repository and must be verified on the host.
 
-The Immich backup assets are likewise host-level. A merge changes the recorded files but does not copy, reload, enable, or start their installed systemd counterparts.
+The Immich and Minecraft backup assets are likewise host-level. A merge changes
+the recorded files but does not initialize repositories, provision passwords,
+copy scripts or units, reload systemd, or enable timers.
 
 ## Validation
 
@@ -209,5 +244,6 @@ Important invariants:
 - do not put credentials, private network identifiers, or personal data in the public repository
 - do not assume the desktop is online continuously
 - avoid changes that materially harm gaming performance without an explicit reason
+- never run two Minecraft processes against the same retained world
 - treat backup existence and restore readiness as separate properties
 - prefer recoverability before availability complexity

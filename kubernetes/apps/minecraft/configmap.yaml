@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minecraft-config
+data:
+  EULA: "TRUE"
+  TYPE: FABRIC
+  VERSION: "26.1.2"
+  FABRIC_LOADER_VERSION: "0.19.3"
+  FABRIC_LAUNCHER_VERSION: "1.1.2"
+  MODRINTH_PROJECTS: |-
+    fabric-api:lOQ4tyDD
+    lithium:fQBdPR1m
+    ferrite-core:d5ddUdiB
+    leaves-us-in-peace:OZtHERvr
+  MODRINTH_DOWNLOAD_DEPENDENCIES: none
+  INIT_MEMORY: 1G
+  MAX_MEMORY: 4G
+  MODE: survival
+  DIFFICULTY: normal
+  PVP: "false"
+  ONLINE_MODE: "true"
+  ENABLE_WHITELIST: "true"
+  ENFORCE_WHITELIST: "true"
+  MAX_PLAYERS: "10"
+  VIEW_DISTANCE: "10"
+  SIMULATION_DISTANCE: "8"
+  PAUSE_WHEN_EMPTY_SECONDS: "600"
+  ENABLE_RCON: "true"
+  OVERRIDE_SERVER_PROPERTIES: "true"
+  ENABLE_ROLLING_LOGS: "true"
+  MOTD: Private Minecraft server
+  TZ: Asia/Manila
+  RCON_CMDS_STARTUP: |-
+    gamerule playersSleepingPercentage 1
