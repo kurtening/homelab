@@ -75,7 +75,7 @@ The declared configuration assumes that an operator has already provided:
 - the Immich library, PostgreSQL, and database-dump directories with suitable ownership and permissions
 - the Minecraft data directory with UID/GID 1000 ownership before its local PV is used
 - initialized application-specific Restic repositories and readable password files
-- the untracked `minecraft/minecraft-bootstrap` seed Secret before Minecraft activation
+- the untracked `minecraft/minecraft-bootstrap` seed Secret required for initial world generation
 - the SOPS age identity and manually bootstrapped `argocd/sops-age` Secret
 - network access to GitHub, the Tailscale Helm repository, the remote Argo CD manifest, and validation schema catalogs
 - Azure and GitHub authentication when planning or applying repository-governance infrastructure
@@ -137,21 +137,21 @@ Application.
 ## Minecraft
 
 Minecraft is represented as a singleton Fabric Deployment with a retained PVC
-and a Tailscale Layer 3 Service. The initial Deployment is staged at zero
-replicas so the host directory, private seed, backup repository, and tailnet
-authorization can be verified before the world is generated.
+and a Tailscale Layer 3 Service. The Deployment runs one replica after the host
+directory, private seed, backup repository, and tailnet authorization were
+prepared for initial world generation.
 
 The server pins Minecraft, Fabric, its container image, and a small set of
 server-compatible performance and quality-of-life mods. Players use a pinned
 Fabulously Optimized client pack, but the server remains compatible with
-unmodified clients of the same Minecraft version. Online authentication and an
-enforced Minecraft whitelist are required even though network reachability is
-limited to the tailnet.
+unmodified clients of the same Minecraft version. Online authentication remains
+enabled, but there is no Minecraft whitelist: tailnet membership is the access
+boundary, so any tailnet member can join the server.
 
 The world seed is an untracked `minecraft-bootstrap` Kubernetes Secret rather
-than repository content. Player names and operator assignments are also managed
-as live application state and must not be committed. Activation and version
-upgrades are separate reviewed GitOps changes described in `docs/minecraft.md`.
+than repository content. Operator assignments are managed as live application
+state and must not be committed. Runtime policy and version changes use reviewed
+GitOps changes described in `docs/minecraft.md`.
 
 ## Backups and recovery
 
@@ -199,7 +199,7 @@ provider custody:
 | --- | --- | --- |
 | `tailscale` namespace | `operator-oauth` | `tailscale-secrets` Argo CD Application from SOPS ciphertext |
 | `immich` namespace | `immich-database` | `immich-secrets` Argo CD Application from SOPS ciphertext |
-| `minecraft` namespace | `minecraft-bootstrap` seed | manually created before activation and never stored in Git |
+| `minecraft` namespace | `minecraft-bootstrap` seed | manually created before initial world generation and never stored in Git |
 | `argocd` namespace | `sops-age` | manually bootstrapped from the protected age identity |
 | host | application-specific Restic password files | provisioned outside Git |
 
