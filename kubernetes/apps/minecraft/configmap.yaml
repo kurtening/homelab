@@ -20,8 +20,8 @@ data:
   DIFFICULTY: normal
   PVP: "false"
   ONLINE_MODE: "true"
-  ENABLE_WHITELIST: "true"
-  ENFORCE_WHITELIST: "true"
+  ENABLE_WHITELIST: "false"
+  ENFORCE_WHITELIST: "false"
   MAX_PLAYERS: "10"
   VIEW_DISTANCE: "10"
   SIMULATION_DISTANCE: "8"

@@ -1,12 +1,11 @@
 # Minecraft
 
-Minecraft is staged as a private, single-instance Java Edition server on the
+Minecraft runs as a private, single-instance Java Edition server on the
 `krof-desktop` K3s node. Argo CD owns the Kubernetes workload, while the world
 uses retained local storage and a host-installed Restic job.
 
-The initial manifest deliberately sets the Deployment to zero replicas. Do not
-activate it until the storage directory, bootstrap seed, Restic repository, and
-tailnet access have been prepared and verified.
+The Deployment runs one replica. Its retained storage directory, bootstrap seed,
+Restic repository, and tailnet access are required runtime dependencies.
 
 ## Server contract
 
@@ -14,7 +13,7 @@ tailnet access have been prepared and verified.
 - Fabric loader `0.19.3`
 - Fabulously Optimized client pack `13.3.0`
 - survival mode, normal difficulty, PvP disabled
-- online authentication and an enforced Minecraft whitelist
+- online authentication with tailnet membership as the only admission boundary
 - Tailscale-only TCP access on port `25565`
 - one-player sleep and fast leaf decay
 - native pause after the server has been empty for ten minutes
@@ -101,10 +100,10 @@ Do not print, decode, or commit the Secret. The generated `server.properties`
 file on retained storage will also contain the seed and is protected by host
 access controls and the encrypted Restic repository.
 
-## Activation and access
+## Runtime and access
 
-Before activation, confirm that `minecraft-data` is bound to the intended PV
-and that the bootstrap Secret exists without inspecting its value:
+Confirm that `minecraft-data` remains bound to the intended PV and that the
+bootstrap Secret exists without inspecting its value:
 
 ```bash
 kubectl --namespace minecraft get persistentvolumeclaim minecraft-data
@@ -113,14 +112,14 @@ kubectl --namespace minecraft get secret minecraft-bootstrap \
   --output name
 ```
 
-Activate the server through a focused GitOps change that sets the Minecraft
-Deployment replica count from zero to one. Do not scale it directly with
-`kubectl`; Argo CD self-healing would revert that mutation.
+The server replica count is managed through GitOps. Do not scale it directly
+with `kubectl`; Argo CD self-healing would revert that mutation.
 
 The Tailscale operator exposes the Service as `minecraft` on TCP port `25565`.
-Tailnet policy is external to this repository and must allow tailnet members to
-reach the operator-managed service. Do not enable Funnel, router port forwarding,
-or a public DNS record.
+Tailnet policy is external to this repository and allows tailnet members to
+reach the operator-managed service. Minecraft's whitelist is disabled, so any
+tailnet member with an authenticated Minecraft account can join. Do not enable
+Funnel, router port forwarding, or a public DNS record.
 
 Players install Fabulously Optimized `13.3.0` for Minecraft `26.1.2`, join the
 tailnet, and connect to:
@@ -131,11 +130,11 @@ minecraft.<tailnet>.ts.net:25565
 
 Use the private tailnet suffix from the Tailscale admin console; never commit it.
 
-## Whitelist and operators
+## Operators
 
-Player names and operator assignments are live application state and must not be
-committed to this public repository. After the pod is ready, manage them through
-the in-container RCON client:
+Operator assignments are live application state and must not be committed to
+this public repository. After the pod is ready, manage them through the
+in-container RCON client:
 
 ```bash
 minecraft_pod="$(
@@ -144,8 +143,6 @@ minecraft_pod="$(
     --output jsonpath='{.items[0].metadata.name}'
 )"
 
-kubectl --namespace minecraft exec "${minecraft_pod}" \
-  --container minecraft -- rcon-cli whitelist add PLAYER_NAME
 kubectl --namespace minecraft exec "${minecraft_pod}" \
   --container minecraft -- rcon-cli op OPERATOR_NAME
 ```
