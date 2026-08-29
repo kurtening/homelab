@@ -22,7 +22,7 @@ kind: Deployment
 metadata:
   name: minecraft
 spec:
-  replicas: 0
+  replicas: 1
   strategy:
     type: Recreate
   selector:
