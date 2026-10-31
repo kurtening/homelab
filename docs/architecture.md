@@ -119,8 +119,8 @@ tied to `krof-desktop` and cannot fail over without a storage migration.
 Jellyfin uses separate retained local volumes rooted at
 `/mnt/data-drive-2tb/jellyfin` for configuration and cache, and
 `/mnt/data-drive-2tb/Media` for read-only media. The Kubernetes workload is
-staged at zero replicas until Compose is stopped so two Jellyfin processes can
-never open the same SQLite database. Like Immich, these volumes are tied to
+configured for one replica; Compose must be stopped before merging activation
+so two Jellyfin processes never open the same SQLite database. Like Immich, these volumes are tied to
 `krof-desktop` and cannot fail over to another node.
 
 ## Immich
@@ -167,10 +167,10 @@ version and immutable image digest. It preserves the Compose container paths,
 uses a ClusterIP Service for Tailscale Ingress, and reserves host port 8096 for
 LAN clients. Port 8920, DLNA, UDP discovery, and GPU access are not enabled.
 
-The Deployment and backup CronJob are initially disabled. The operational
-procedure in `docs/jellyfin.md` creates the backup API credential, verifies
-retained storage, stops Compose, and activates the Kubernetes replica through a
-separate GitOps change.
+The Deployment declares one replica and the backup CronJob is enabled. The
+operational procedure in `docs/jellyfin.md` verifies credentials, retained
+storage, and backups, then stops Compose before merging activation. The host
+Restic timer is enabled manually only after Kubernetes backup verification.
 
 ## Backups and recovery
 
@@ -201,8 +201,8 @@ applies the same 7-daily/4-weekly/6-monthly retention policy, and runs
 
 The host backup is tightly coupled to the Immich namespace, PostgreSQL pod and container names, database name, host paths, K3s binary location, Restic repository, and password file. Kubernetes or host changes to those interfaces must be reviewed together.
 
-Jellyfin creates an application-consistent online archive through a suspended
-CronJob after a dedicated SOPS-managed API key replaces the staged placeholder.
+Jellyfin creates an application-consistent online archive through a daily
+CronJob using a dedicated SOPS-managed API key.
 A separate host timer backs up those archives and static configuration to
 `/mnt/backup/homelab/jellyfin/repository`. It deliberately excludes media and
 cache data. The Jellyfin and Immich repositories use separate password files

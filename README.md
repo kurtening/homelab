@@ -17,7 +17,7 @@ ingress, and OpenTofu/Terragrunt records the repository's GitHub governance.
 | --- | --- | --- |
 | Kubernetes | Single-node K3s | Host installation and initial bootstrap are manual |
 | GitOps | Argo CD app-of-apps | Kubernetes resources reconcile automatically from `main` |
-| Applications | Immich, Minecraft, Jellyfin, and `whoami` | Minecraft is enabled; Jellyfin is staged at zero replicas |
+| Applications | Immich, Minecraft, Jellyfin, and `whoami` | Minecraft and Jellyfin run as singletons; Jellyfin cutover requires Compose shutdown before merge |
 | Private ingress | Tailscale Kubernetes Operator | OAuth Secret is SOPS-encrypted in Git; tailnet policy remains external |
 | Persistent storage | Static local Immich, Minecraft, and Jellyfin PVs | Retained and bound to `krof-desktop` |
 | Backups | Application-consistent archives and Restic snapshots | Host installation is manual; local only with no tested cold restore or off-machine copy |
@@ -92,7 +92,7 @@ the formatting and validation commands mirrored from the IaC workflow.
 
 - [Architecture](docs/architecture.md) explains ownership, reconciliation,
   networking, storage, backups, and trust boundaries.
-- [Jellyfin operations](docs/jellyfin.md) covers the staged Compose migration,
+- [Jellyfin operations](docs/jellyfin.md) covers the Compose migration,
   backup setup, cutover, and rollback.
 - [Secret management](docs/secret-management.md) covers SOPS/age custody,
   Argo CD bootstrap, validation, and recovery.
