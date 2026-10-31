@@ -5,7 +5,7 @@ metadata:
 spec:
   schedule: "0 4 * * *"
   timeZone: Asia/Manila
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 86400
   successfulJobsHistoryLimit: 1

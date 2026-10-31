@@ -44,7 +44,7 @@ Treat the tracked manifests, scripts, workflows, and current branch state as aut
 - Do not change retained storage, PVC/PV bindings, node affinity, mount paths, capacities, or reclaim policy as incidental cleanup.
 - `immich-storage` and `immich` are separate child Applications without explicit sync-wave ordering. During bootstrap or recovery, verify the static PVs and PVCs are ready before relying on Immich.
 - Jellyfin local storage, configuration paths, media paths, container paths, and host port are migration interfaces. Never run the Compose and Kubernetes instances simultaneously against the shared SQLite state.
-- The Jellyfin Deployment and backup CronJob are intentionally disabled until the encrypted API-key placeholder is replaced, retained storage definitions and host prerequisites are verified, a current backup exists, and Compose has stopped. PVCs use `WaitForFirstConsumer` and may remain Pending until activation; verify Bound status after scheduling the first server pod. Activation is a separate reviewed change.
+- Jellyfin declares one replica and an enabled backup CronJob. Before merging activation or restoring it after rollback, verify its encrypted API key, retained storage, host prerequisites, and current backup, and stop Compose. Never activate Kubernetes while Compose is running against the shared state. PVCs use `WaitForFirstConsumer`; verify Bound status after scheduling the first server pod.
 - Tailscale Ingress is the normal private application ingress mechanism. Traefik is currently internal-only (`ClusterIP`).
 - Before cluster-side diagnostics from a development machine, verify the active kube context instead of assuming it targets `krof-desktop`.
 

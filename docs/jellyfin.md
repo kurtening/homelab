@@ -1,13 +1,13 @@
 # Jellyfin operations
 
-Jellyfin is staged for migration from Docker Compose to the single-node K3s
-cluster. The Kubernetes Deployment and its backup CronJob are deliberately
-disabled in Git until the cutover procedure below is completed.
+Jellyfin declares one Kubernetes replica and an enabled daily backup CronJob.
+Stop Compose before merging the activation change: the two instances share
+SQLite state and must never run simultaneously. Follow the cutover procedure
+below, including backup verification and the rollback sequence.
 
-Merging this staging configuration creates the retained storage resources,
-placeholder Secret, Service, and Tailscale Ingress. The endpoint has no Jellyfin
-backend until activation. Host scripts and systemd units are not installed by
-Argo CD.
+Retained storage, the SOPS-managed API key, Service, and Tailscale Ingress are
+managed by Argo CD. Host scripts and systemd units require manual installation;
+enable the Restic timer only after Kubernetes backup verification succeeds.
 
 ## Deployment contract
 
@@ -31,9 +31,9 @@ mutable `latest` tag.
 
 ## Backup credential
 
-The encrypted `jellyfin-backup-api-key` Secret initially contains an unusable
-placeholder because an administrator must create the API key in Jellyfin.
-Before activation:
+The encrypted `jellyfin-backup-api-key` Secret contains a dedicated credential.
+During initial staging it used an unusable placeholder. If bootstrapping again
+or deliberately replacing the credential:
 
 1. In the running Compose instance, create a dedicated API key named
    `homelab-jellyfin-backup` under **Dashboard > API Keys**.
@@ -47,7 +47,8 @@ Before activation:
 
 The CronJob runs at 04:00 Asia/Manila and calls Jellyfin's built-in online
 backup endpoint. It includes the database, metadata, subtitles, and trickplay.
-The CronJob remains suspended until cutover.
+The CronJob is enabled by the activation change and remains suspended if that
+change is reverted.
 Backup creation is a non-idempotent POST, so neither curl nor the Job retries
 it automatically. After failure, inspect the server and archive directory
 before manually retrying to avoid overlapping backup creation.
