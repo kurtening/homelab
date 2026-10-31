@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""Read-only first scheduled-chain evidence. Run with sudo on krof-desktop."""
+from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import zipfile
+
+
+def scheduled_successes(jobs):
+    return sorted((job for job in jobs if job.get('status', {}).get('succeeded', 0) > 0
+                   and job.get('metadata', {}).get('annotations', {}).get('cronjob.kubernetes.io/instantiate') != 'manual'
+                   and job.get('metadata', {}).get('annotations', {}).get('batch.kubernetes.io/cronjob-scheduled-timestamp')
+                   and any(owner.get('kind') == 'CronJob' and owner.get('name') == 'jellyfin-backup'
+                           and owner.get('controller') for owner in job.get('metadata', {}).get('ownerReferences', []))),
+                  key=lambda job: job['status']['completionTime'])
+
+
+def timestamp(value):
+    return datetime.fromisoformat(value.replace('Z', '+00:00')).timestamp()
+
+
+def archive_matches(entry, archive):
+    return (entry.get('type') == 'file'
+            and entry.get('path', '').endswith('/config/data/backups/' + archive.name)
+            and entry.get('size') == archive.stat().st_size
+            and abs(timestamp(entry['mtime']) - archive.stat().st_mtime) < 1)
+
+
+def command(args, env=None):
+    result = subprocess.run(args, capture_output=True, text=True, env=env)
+    if result.returncode:
+        raise RuntimeError('Read-only evidence command failed; verify host access and credentials')
+    return result.stdout
+
+
+def main():
+    if os.geteuid() != 0:
+        print('Run with sudo on krof-desktop; no credentials are printed')
+        return 1
+    jobs = json.loads(command(['/usr/local/bin/k3s', 'kubectl', 'get', 'jobs', '-n', 'jellyfin', '-o', 'json']))['items']
+    completed = scheduled_successes(jobs)
+    if not completed:
+        print('PENDING: no successful scheduled Jellyfin backup Job; manual cutover Jobs do not count')
+        return 2
+    job = completed[-1]
+    start, finish = timestamp(job['status']['startTime']), timestamp(job['status']['completionTime'])
+    archives = [p for p in Path('/mnt/data-drive-2tb/jellyfin/config/data/backups').glob('jellyfin-backup-*.zip')
+                if start - 60 <= p.stat().st_mtime <= finish + 60]
+    if len(archives) != 1:
+        raise RuntimeError('Cannot uniquely correlate the scheduled Job to an archive')
+    archive = archives[0]
+    with zipfile.ZipFile(archive) as z:
+        if z.testzip() is not None:
+            raise RuntimeError('Scheduled archive integrity failed')
+    env = dict(os.environ, RESTIC_REPOSITORY='/mnt/backup/homelab/jellyfin/repository',
+               RESTIC_PASSWORD_FILE='/etc/restic/jellyfin-password')
+    snapshots = json.loads(command(['restic', 'snapshots', '--host', 'krof-desktop', '--tag', 'jellyfin', '--json'], env))
+    snapshots = sorted((s for s in snapshots if timestamp(s['time']) >= finish), key=lambda s: s['time'])
+    if not snapshots:
+        print('PENDING: scheduled archive is valid; no subsequent Restic snapshot yet')
+        return 2
+    found = None
+    for snapshot in snapshots:
+        listing = command(['restic', 'ls', '--json', snapshot['id']], env)
+        for line in listing.splitlines():
+            entry = json.loads(line)
+            if archive_matches(entry, archive):
+                found = snapshot['id'][:8]
+                break
+        if found:
+            break
+    if not found:
+        raise RuntimeError('Subsequent Restic snapshots do not contain the correlated archive')
+    timer = dict(line.split('=', 1) for line in command(['systemctl', 'show', 'jellyfin-restic-backup.timer',
+                 '-p', 'ActiveState', '-p', 'UnitFileState', '-p', 'LastTriggerUSecMonotonic']).splitlines() if '=' in line)
+    service = dict(line.split('=', 1) for line in command(['systemctl', 'show', 'jellyfin-restic-backup.service',
+                   '-p', 'Result', '-p', 'ExecMainStatus', '-p', 'ExecMainStartTimestampMonotonic']).splitlines() if '=' in line)
+    trigger = int(timer.get('LastTriggerUSecMonotonic', '0'))
+    if (timer.get('ActiveState') != 'active' or timer.get('UnitFileState') != 'enabled' or trigger <= 0
+            or int(service.get('ExecMainStartTimestampMonotonic', '0')) < trigger
+            or service.get('Result') != 'success' or service.get('ExecMainStatus') != '0'):
+        print('PENDING: archive and snapshot correlate; timer/service completion still needs confirmation')
+        return 2
+    print('PASS: scheduled CronJob, valid archive, subsequent snapshot ' + found + ', and successful timer/service evidence')
+    subprocess.run(['systemctl', 'list-timers', 'jellyfin-restic-backup.timer', '--no-pager'], check=True)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (RuntimeError, OSError, ValueError, KeyError, zipfile.BadZipFile):
+        print('FAIL: scheduled-chain evidence could not be verified; inspect locally without exposing credentials', file=sys.stderr)
+        sys.exit(1)
