@@ -214,8 +214,9 @@ and played/resume records against the archive. The tracked drill first
 initializes an isolated schema and uses a bounded 8 GiB container; the initial
 2 GiB health-only test was insufficient and is not accepted evidence. Host
 backup installation and manual execution passed, and the timer is enabled.
-The first scheduled-chain check and independent age-identity recovery-copy
-verification remain pending; see `docs/jellyfin.md`. Neither the drill nor the
+The independent age-identity vault copy passed recipient matching and silent
+decryption verification. The first scheduled-chain check remains pending;
+see `docs/jellyfin.md`. Neither the drill nor the
 local Restic repository recovers excluded media after total machine loss.
 
 ## GitHub repository infrastructure

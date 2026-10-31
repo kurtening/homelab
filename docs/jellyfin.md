@@ -246,9 +246,10 @@ catalog mappings, library definitions, and watch/resume records. The earlier
 2 GiB health-only attempt ran out of memory during import and was a false
 positive; it is not recovery evidence. Production remained unaffected.
 
-The Restic password recovery copy is operator-confirmed. An independent SOPS
-age-identity copy still requires a matching-recipient and silent decryption
-check; do not rotate the identity as part of verification. This application
+The Restic password recovery copy is operator-confirmed. On November 1, 2026,
+the operator verified the independent vault copy of the SOPS age identity:
+its derived public recipient matched `.sops.yaml` and it decrypted repository
+ciphertext silently. No identity rotation was performed. This application
 drill does not prove host-loss recovery, media recovery, or off-machine backup
 availability. Media and disposable cache are deliberately excluded from this
 Restic repository.

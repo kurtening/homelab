@@ -69,9 +69,9 @@ before allowing the root Argo CD Application to reconcile dependent workloads.
   copy.
 - No cold-restore drill has proven recovery of PostgreSQL, media, credentials,
   and application availability.
-- Jellyfin's isolated application restore and content checks passed; the first
-  scheduled backup chain and independent age-identity recovery verification
-  remain pending. See the Jellyfin runbook for the current evidence scope.
+- Jellyfin's isolated application restore/content checks and independent
+  age-identity recovery verification passed. The first scheduled backup chain
+  remains pending. See the Jellyfin runbook for the current evidence scope.
 
 Retained PV/PVC policies and `Prune=false,Delete=false` protections reduce
 accidental deletion risk, but they are not backups.
