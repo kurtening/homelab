@@ -1,0 +1,82 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: jellyfin-backup
+spec:
+  schedule: "0 4 * * *"
+  timeZone: Asia/Manila
+  suspend: true
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 86400
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 7200
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: jellyfin
+            app.kubernetes.io/component: backup
+            app.kubernetes.io/part-of: homelab
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: create-backup
+              image: curlimages/curl:8.16.0@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -ec
+              args:
+                - |
+                  if [ "${JELLYFIN_API_KEY}" = "REPLACE_WITH_JELLYFIN_API_KEY_BEFORE_ACTIVATION" ]; then
+                    echo "Jellyfin backup API key placeholder has not been replaced" >&2
+                    exit 1
+                  fi
+
+                  curl \
+                    --fail \
+                    --silent \
+                    --show-error \
+                    --connect-timeout 10 \
+                    --max-time 7200 \
+                    --output /dev/null \
+                    --header "Authorization: MediaBrowser Token=\"${JELLYFIN_API_KEY}\"" \
+                    --header "Content-Type: application/json" \
+                    --data '{"Database":true,"Metadata":true,"Subtitles":true,"Trickplay":true}' \
+                    http://jellyfin:8096/Backup/Create
+              env:
+                - name: JELLYFIN_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: jellyfin-backup-api-key
+                      key: API_KEY
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 65532
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 128Mi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 32Mi

@@ -43,6 +43,8 @@ Treat the tracked manifests, scripts, workflows, and current branch state as aut
 - Treat resources annotated or configured with `Prune=false`, `Delete=false`, or `Retain` as intentionally protected data.
 - Do not change retained storage, PVC/PV bindings, node affinity, mount paths, capacities, or reclaim policy as incidental cleanup.
 - `immich-storage` and `immich` are separate child Applications without explicit sync-wave ordering. During bootstrap or recovery, verify the static PVs and PVCs are ready before relying on Immich.
+- Jellyfin local storage, configuration paths, media paths, container paths, and host port are migration interfaces. Never run the Compose and Kubernetes instances simultaneously against the shared SQLite state.
+- The Jellyfin Deployment and backup CronJob are intentionally disabled until the encrypted API-key placeholder is replaced, retained storage definitions and host prerequisites are verified, a current backup exists, and Compose has stopped. PVCs use `WaitForFirstConsumer` and may remain Pending until activation; verify Bound status after scheduling the first server pod. Activation is a separate reviewed change.
 - Tailscale Ingress is the normal private application ingress mechanism. Traefik is currently internal-only (`ClusterIP`).
 - Before cluster-side diagnostics from a development machine, verify the active kube context instead of assuming it targets `krof-desktop`.
 
@@ -88,6 +90,7 @@ Tailscale ACLs or grants, tag ownership, DNS and certificate behavior, OAuth pro
 ## Storage and backups
 
 - Immich library and PostgreSQL data use retained local storage under `/mnt/data-drive-2tb`, bound to `krof-desktop`.
+- Jellyfin configuration/cache and read-only media use retained local storage under `/mnt/data-drive-2tb`, bound to `krof-desktop`.
 - The local Restic target is `/mnt/backup`; verify that it is the expected independent storage device rather than trusting the directory name.
 - Immich backup automation is host-level and uses Restic plus a PostgreSQL dump. Repository files are not automatically copied into systemd or `/usr/local/sbin` after merge.
 - Never assume a path is mounted correctly merely because the directory exists. Validate the mountpoint, filesystem, and expected device identity before storage operations.
@@ -96,6 +99,7 @@ Tailscale ACLs or grants, tag ownership, DNS and certificate behavior, OAuth pro
 - The backup script is coupled to the Immich namespace, PostgreSQL pod and container names, database name, host paths, K3s binary, Restic repository, and password location. Review and update the Kubernetes and host artifacts together when any of these change.
 - The backup covers the Immich library and a generated PostgreSQL dump, not the reproducible machine-learning cache. `restic check` is not a restore test.
 - There is no tested cold-restore procedure or off-machine backup in this repository. Do not describe the deployment as fully recoverable without a successful restore drill and independent secret recovery.
+- Jellyfin's host Restic job backs up built-in application archives and static configuration, not live SQLite files, media, or cache data. It requires a fresh built-in archive from the Kubernetes CronJob.
 
 ## Validation
 
@@ -128,6 +132,7 @@ For host backup changes, at minimum run:
 
 ```bash
 bash -n host/krof-desktop/backup/immich/immich-restic-backup
+bash -n host/krof-desktop/backup/jellyfin/jellyfin-restic-backup
 ```
 
 Check whitespace errors in the worktree, index, and complete pull-request range as applicable:

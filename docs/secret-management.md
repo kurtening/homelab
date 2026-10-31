@@ -13,8 +13,9 @@ boundary. It does not authorize credential rotation or deletion.
 | --- | --- | --- |
 | `tailscale-secrets` | `kubernetes/secrets/tailscale/operator-oauth.sops.yaml` | `tailscale/operator-oauth` |
 | `immich-secrets` | `kubernetes/secrets/immich/immich-database.sops.yaml` | `immich/immich-database` |
+| `jellyfin-secrets` | `kubernetes/secrets/jellyfin/jellyfin-backup-api-key.sops.yaml` | `jellyfin/jellyfin-backup-api-key` |
 
-Both child Applications have sync wave `-1`, while the encrypted Secret
+All secret child Applications have sync wave `-1`, while the encrypted Secret
 resources use `Prune=false,Delete=false`. The ordering creates the secret child
 Applications before their consumers during root synchronization; the retention
 annotations protect live credentials during rollback or Application removal.
@@ -95,4 +96,7 @@ depends on it; deleting it is a separate destructive action.
 
 Use `sops updatekeys` when intentionally changing recipients. Re-encrypting a
 file or changing its age recipient does not rotate the Tailscale OAuth client,
-Immich database password, or any other application credential.
+Immich database password, Jellyfin API key, or any other application
+credential. The Jellyfin backup Secret is committed with an encrypted,
+nonfunctional placeholder during staging; follow `docs/jellyfin.md` to replace
+it before enabling the backup CronJob.

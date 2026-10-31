@@ -27,3 +27,6 @@ jobs:
 
       - name: Render and validate manifests
         run: ./scripts/validate-kubernetes.sh
+
+      - name: Check Jellyfin backup archive gate
+        run: bash scripts/test-jellyfin-backup.sh

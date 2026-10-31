@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: jellyfin
+spec:
+  selector:
+    app.kubernetes.io/name: jellyfin
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: 8096
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jellyfin
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jellyfin
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jellyfin
+        app.kubernetes.io/component: server
+        app.kubernetes.io/part-of: homelab
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      nodeSelector:
+        kubernetes.io/hostname: krof-desktop
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: jellyfin
+          image: jellyfin/jellyfin:10.11.11@sha256:aefb67e6a7ff1debdd154a78a7bbb780fd0c873d8639210a7f6a2016ad2b35db
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: jellyfin-config
+          ports:
+            - name: http
+              containerPort: 8096
+              hostPort: 8096
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "8"
+              memory: 4Gi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - name: state
+              mountPath: /config
+              subPath: config
+            - name: state
+              mountPath: /cache
+              subPath: cache
+            - name: media
+              mountPath: /media
+              readOnly: true
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: jellyfin-state
+        - name: media
+          persistentVolumeClaim:
+            claimName: jellyfin-media
+            readOnly: true
