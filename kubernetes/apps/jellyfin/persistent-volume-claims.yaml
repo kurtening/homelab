@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jellyfin-state
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: jellyfin-local-retain
+  volumeName: jellyfin-state
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jellyfin-media
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: jellyfin-local-retain
+  volumeName: jellyfin-media
+  resources:
+    requests:
+      storage: 1Ti

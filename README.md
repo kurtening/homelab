@@ -17,10 +17,10 @@ ingress, and OpenTofu/Terragrunt records the repository's GitHub governance.
 | --- | --- | --- |
 | Kubernetes | Single-node K3s | Host installation and initial bootstrap are manual |
 | GitOps | Argo CD app-of-apps | Kubernetes resources reconcile automatically from `main` |
-| Applications | Immich, Minecraft, and `whoami` | Declared under `kubernetes/apps/`; Minecraft runs as a private singleton |
+| Applications | Immich, Minecraft, Jellyfin, and `whoami` | Minecraft is enabled; Jellyfin is staged at zero replicas |
 | Private ingress | Tailscale Kubernetes Operator | OAuth Secret is SOPS-encrypted in Git; tailnet policy remains external |
-| Persistent storage | Static local Immich and Minecraft PVs | Retained and bound to `krof-desktop` |
-| Backups | Application-consistent Restic snapshots | Host installation is manual; local only with no tested cold restore or off-machine copy |
+| Persistent storage | Static local Immich, Minecraft, and Jellyfin PVs | Retained and bound to `krof-desktop` |
+| Backups | Application-consistent archives and Restic snapshots | Host installation is manual; local only with no tested cold restore or off-machine copy |
 | Repository policy | OpenTofu/Terragrunt | Planned and applied manually with remote state |
 
 Only Argo-managed Kubernetes resources change automatically after a merge.
@@ -92,6 +92,8 @@ the formatting and validation commands mirrored from the IaC workflow.
 
 - [Architecture](docs/architecture.md) explains ownership, reconciliation,
   networking, storage, backups, and trust boundaries.
+- [Jellyfin operations](docs/jellyfin.md) covers the staged Compose migration,
+  backup setup, cutover, and rollback.
 - [Secret management](docs/secret-management.md) covers SOPS/age custody,
   Argo CD bootstrap, validation, and recovery.
 - [Minecraft](docs/minecraft.md) covers the private server, tailnet access,

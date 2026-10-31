@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+umask 077
+
+DATA_MOUNT="/mnt/data-drive-2tb"
+BACKUP_MOUNT="/mnt/backup"
+
+DATA_UUID="cb3505ce-970c-49c2-ad50-4bc07ddbe508"
+BACKUP_UUID="3180031e-abd5-4d6a-8aac-abe3e41dc950"
+
+JELLYFIN_ROOT="${DATA_MOUNT}/jellyfin"
+CONFIG_PATH="${JELLYFIN_ROOT}/config/config"
+PLUGIN_CONFIG_PATH="${JELLYFIN_ROOT}/config/plugins/configurations"
+BUILTIN_BACKUPS_PATH="${JELLYFIN_ROOT}/config/data/backups"
+
+RESTIC_REPOSITORY="${BACKUP_MOUNT}/homelab/jellyfin/repository"
+RESTIC_PASSWORD_FILE="/etc/restic/jellyfin-password"
+
+export RESTIC_REPOSITORY
+export RESTIC_PASSWORD_FILE
+
+log() {
+  printf '%s %s\n' "$(date --iso-8601=seconds)" "$*"
+}
+
+die() {
+  log "ERROR: $*"
+  exit 1
+}
+
+verify_mount() {
+  local mount_path="$1"
+  local expected_uuid="$2"
+  local source_device
+  local actual_uuid
+  local filesystem
+
+  mountpoint --quiet "${mount_path}" ||
+    die "${mount_path} is not a mount point"
+
+  source_device="$(
+    findmnt --raw --noheadings --target "${mount_path}" --output SOURCE
+  )"
+
+  filesystem="$(
+    findmnt --raw --noheadings --target "${mount_path}" --output FSTYPE
+  )"
+
+  actual_uuid="$(
+    blkid --match-tag UUID --output value "${source_device}"
+  )"
+
+  [[ "${filesystem}" == "ext4" ]] ||
+    die "${mount_path} uses ${filesystem}, expected ext4"
+
+  [[ "${actual_uuid}" == "${expected_uuid}" ]] ||
+    die "${mount_path} UUID is ${actual_uuid}, expected ${expected_uuid}"
+}
+
+has_recent_builtin_backup() {
+  local archive
+
+  while IFS= read -r -d '' archive; do
+    if unzip -tqq "${archive}" >/dev/null 2>&1; then
+      return 0
+    fi
+  done < <(find "${BUILTIN_BACKUPS_PATH}" \
+    -maxdepth 1 \
+    -type f \
+    -name '*.zip' \
+    -mmin -120 \
+    -size +0c \
+    -print0)
+
+  return 1
+}
+
+log "Validating storage mounts"
+
+verify_mount "${DATA_MOUNT}" "${DATA_UUID}"
+verify_mount "${BACKUP_MOUNT}" "${BACKUP_UUID}"
+
+for required_path in \
+  "${CONFIG_PATH}" \
+  "${PLUGIN_CONFIG_PATH}" \
+  "${BUILTIN_BACKUPS_PATH}" \
+  "${RESTIC_REPOSITORY}"; do
+  [[ -d "${required_path}" ]] ||
+    die "Missing required directory: ${required_path}"
+done
+
+[[ -r "${RESTIC_PASSWORD_FILE}" ]] ||
+  die "Restic password file is unavailable"
+
+command -v restic >/dev/null ||
+  die "restic is unavailable"
+command -v unzip >/dev/null ||
+  die "unzip is unavailable"
+
+log "Waiting for a Jellyfin backup archive created within the last two hours"
+
+for _ in {1..60}; do
+  if has_recent_builtin_backup; then
+    break
+  fi
+
+  sleep 30
+done
+
+has_recent_builtin_backup ||
+  die "No recent Jellyfin built-in backup archive is available"
+
+log "Validating Restic repository"
+restic snapshots >/dev/null
+
+log "Creating Jellyfin snapshot"
+
+cd "${JELLYFIN_ROOT}"
+
+restic backup \
+  --host krof-desktop \
+  --tag jellyfin \
+  --one-file-system \
+  config/config \
+  config/plugins/configurations \
+  config/data/backups
+
+log "Applying retention policy"
+
+restic forget \
+  --host krof-desktop \
+  --tag jellyfin \
+  --group-by host,paths,tags \
+  --keep-daily 7 \
+  --keep-weekly 4 \
+  --keep-monthly 6 \
+  --prune
+
+log "Checking repository structure"
+restic check
+
+log "Jellyfin backup completed successfully"

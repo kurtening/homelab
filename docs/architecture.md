@@ -116,6 +116,13 @@ Minecraft uses a separate retained local volume at
 value controls Kubernetes binding rather than filesystem quota. The world is
 tied to `krof-desktop` and cannot fail over without a storage migration.
 
+Jellyfin uses separate retained local volumes rooted at
+`/mnt/data-drive-2tb/jellyfin` for configuration and cache, and
+`/mnt/data-drive-2tb/Media` for read-only media. The Kubernetes workload is
+staged at zero replicas until Compose is stopped so two Jellyfin processes can
+never open the same SQLite database. Like Immich, these volumes are tied to
+`krof-desktop` and cannot fail over to another node.
+
 ## Immich
 
 Immich is deployed from `kubernetes/apps/immich/` and currently consists of:
@@ -153,6 +160,18 @@ than repository content. Operator assignments are managed as live application
 state and must not be committed. Runtime policy and version changes use reviewed
 GitOps changes described in `docs/minecraft.md`.
 
+## Jellyfin
+
+Jellyfin is represented by a single Deployment pinned to a reviewed stable
+version and immutable image digest. It preserves the Compose container paths,
+uses a ClusterIP Service for Tailscale Ingress, and reserves host port 8096 for
+LAN clients. Port 8920, DLNA, UDP discovery, and GPU access are not enabled.
+
+The Deployment and backup CronJob are initially disabled. The operational
+procedure in `docs/jellyfin.md` creates the backup API credential, verifies
+retained storage, stops Compose, and activates the Kubernetes replica through a
+separate GitOps change.
+
 ## Backups and recovery
 
 Immich backups are host-level rather than Kubernetes workloads. The repository stores the script and systemd units, but it does not install them into `/usr/local/sbin` and systemd or enable the timer automatically.
@@ -182,6 +201,13 @@ applies the same 7-daily/4-weekly/6-monthly retention policy, and runs
 
 The host backup is tightly coupled to the Immich namespace, PostgreSQL pod and container names, database name, host paths, K3s binary location, Restic repository, and password file. Kubernetes or host changes to those interfaces must be reviewed together.
 
+Jellyfin creates an application-consistent online archive through a suspended
+CronJob after a dedicated SOPS-managed API key replaces the staged placeholder.
+A separate host timer backs up those archives and static configuration to
+`/mnt/backup/homelab/jellyfin/repository`. It deliberately excludes media and
+cache data. The Jellyfin and Immich repositories use separate password files
+and retention operations.
+
 ## GitHub repository infrastructure
 
 OpenTofu and Terragrunt manage this repository's GitHub settings and main-branch ruleset. The module prevents repository destruction and requires the IaC and Kubernetes status checks configured in the module.
@@ -200,6 +226,7 @@ provider custody:
 | `tailscale` namespace | `operator-oauth` | `tailscale-secrets` Argo CD Application from SOPS ciphertext |
 | `immich` namespace | `immich-database` | `immich-secrets` Argo CD Application from SOPS ciphertext |
 | `minecraft` namespace | `minecraft-bootstrap` seed | manually created before initial world generation and never stored in Git |
+| `jellyfin` namespace | `jellyfin-backup-api-key` | `jellyfin-secrets` Argo CD Application from SOPS ciphertext |
 | `argocd` namespace | `sops-age` | manually bootstrapped from the protected age identity |
 | host | application-specific Restic password files | provisioned outside Git |
 
@@ -222,9 +249,9 @@ management path.
 
 Not every service belongs in Kubernetes. Host Tailscale and Sunshine are intended to remain host-level because they provide access to, or depend directly on, the desktop itself. Their installation and live state are not managed by this repository and must be verified on the host.
 
-The Immich and Minecraft backup assets are likewise host-level. A merge changes
-the recorded files but does not initialize repositories, provision passwords,
-copy scripts or units, reload systemd, or enable timers.
+The Immich, Minecraft, and Jellyfin backup assets are likewise host-level. A
+merge changes the recorded files but does not initialize repositories, provision
+passwords, copy scripts or units, reload systemd, or enable timers.
 
 ## Validation
 

@@ -1,0 +1,34 @@
+[Unit]
+Description=Jellyfin Restic backup
+RequiresMountsFor=/mnt/data-drive-2tb /mnt/backup
+Wants=k3s.service
+After=local-fs.target k3s.service
+ConditionPathIsMountPoint=/mnt/data-drive-2tb
+ConditionPathIsMountPoint=/mnt/backup
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+
+ExecStart=/usr/local/sbin/jellyfin-restic-backup
+
+CacheDirectory=restic-jellyfin
+CacheDirectoryMode=0700
+Environment=HOME=/var/cache/restic-jellyfin
+Environment=RESTIC_CACHE_DIR=/var/cache/restic-jellyfin
+
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+
+ReadOnlyPaths=/mnt/data-drive-2tb/jellyfin
+ReadWritePaths=/mnt/backup/homelab/jellyfin/repository
+
+TimeoutStartSec=12h
