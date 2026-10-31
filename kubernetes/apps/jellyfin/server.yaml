@@ -51,10 +51,14 @@ spec:
               hostPort: 8096
               protocol: TCP
           securityContext:
+            # Preserve access to the existing mixed root/UID-1000 Compose state.
+            runAsUser: 0
             allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
+              add:
+                - DAC_OVERRIDE
           resources:
             requests:
               cpu: 500m
