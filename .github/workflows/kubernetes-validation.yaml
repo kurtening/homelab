@@ -30,3 +30,6 @@ jobs:
 
       - name: Check Jellyfin backup archive gate
         run: bash scripts/test-jellyfin-backup.sh
+
+      - name: Check Jellyfin recovery tooling
+        run: python3 scripts/test-jellyfin-recovery.py

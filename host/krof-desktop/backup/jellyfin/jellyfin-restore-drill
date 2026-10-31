@@ -1,0 +1,291 @@
+#!/usr/bin/env python3
+"""Isolated, retained Jellyfin recovery drill; Python standard library only."""
+import argparse
+from collections import Counter
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import signal
+import sqlite3
+import subprocess
+import sys
+import tempfile
+import time
+import uuid
+import zipfile
+
+
+class RecoveryError(Exception):
+    pass
+
+
+def image_from_manifest(path):
+    images = re.findall(r'^\s*image:\s*(\S+)\s*$', path.read_text(), re.M)
+    if len(images) != 1 or not re.fullmatch(r'jellyfin/jellyfin:\d+\.\d+\.\d+@sha256:[0-9a-f]{64}', images[0]):
+        raise RecoveryError('Expected one digest-pinned Jellyfin image')
+    return images[0]
+
+
+def field(obj, name):
+    for key, value in obj.items():
+        if key.casefold() == name.casefold():
+            return value
+    raise RecoveryError('Required archive field is missing')
+
+
+def inspect_archive(path, image):
+    try:
+        with zipfile.ZipFile(path) as archive:
+            for info in archive.infolist():
+                parts = info.filename.replace('\\', '/').split('/')
+                if parts[0] == '' or '..' in parts or (info.external_attr >> 16) & 0o170000 == 0o120000:
+                    raise RecoveryError('Unsafe archive entry')
+            if archive.testzip() is not None:
+                raise RecoveryError('Archive integrity check failed')
+            manifest = json.loads(archive.read('manifest.json'))
+            version = str(field(manifest, 'ServerVersion')).split('.')[:3]
+            expected = image.split(':', 1)[1].split('@')[0].split('.')
+            if version != expected:
+                raise RecoveryError('Archive/image version mismatch; use a separately reviewed upgrade procedure')
+            if field(field(manifest, 'Options'), 'Database') is not True:
+                raise RecoveryError('Archive does not include database content')
+    except (zipfile.BadZipFile, KeyError, ValueError) as exc:
+        raise RecoveryError('Invalid Jellyfin backup archive') from exc
+
+
+def choose_archive(root, image):
+    candidates = []
+    for path in root.rglob('jellyfin-backup-*.zip'):
+        if path.is_symlink() or root.resolve() not in path.resolve().parents:
+            raise RecoveryError('Archive escapes the isolated restore')
+        if path.is_file():
+            candidates.append(path)
+    if not candidates:
+        raise RecoveryError('No Jellyfin archive in restored snapshot')
+    selected = max(candidates, key=lambda p: (p.stat().st_mtime_ns, str(p)))
+    inspect_archive(selected, image)
+    return selected
+
+
+def normalized(value, name):
+    if value is None:
+        return None
+    if name in ('Id', 'ItemId', 'UserId'):
+        try:
+            return str(uuid.UUID(str(value)))
+        except ValueError:
+            return str(value)
+    if name in ('Played', 'IsFavorite'):
+        return bool(value)
+    if name == 'LastPlayedDate':
+        date = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        return date.replace(tzinfo=date.tzinfo or timezone.utc).astimezone(timezone.utc).isoformat()
+    return value
+
+
+def verify_content(archive_path, config, report):
+    """Compare point-in-time archive data to a cleanly stopped restored instance."""
+    database = config / 'data/jellyfin.db'
+    if not database.is_file() or database.is_symlink():
+        raise RecoveryError('Restored database missing or unsafe')
+    summary = {}
+    with zipfile.ZipFile(archive_path) as archive, sqlite3.connect(database.as_uri() + '?mode=ro', uri=True) as db:
+        if db.execute('PRAGMA quick_check').fetchone()[0] != 'ok':
+            raise RecoveryError('Restored SQLite integrity check failed')
+        tables = {
+            'Users': ('Id', 'Username'),
+            'BaseItems': ('Id', 'Path', 'Type'),
+            'UserData': ('ItemId', 'UserId', 'CustomDataKey', 'Played', 'PlaybackPositionTicks', 'PlayCount', 'IsFavorite', 'LastPlayedDate'),
+        }
+        failures = []
+        differences = {}
+        for table, columns in tables.items():
+            try:
+                rows = json.loads(archive.read('Database/' + table + '.json'))
+            except (KeyError, ValueError) as exc:
+                raise RecoveryError('Required content export missing or invalid') from exc
+            expected = Counter(tuple(normalized(field(row, col), col) for col in columns) for row in rows)
+            sql = 'SELECT ' + ','.join('"' + col + '"' for col in columns) + ' FROM "' + table + '"'
+            actual = Counter(tuple(normalized(value, col) for value, col in zip(row, columns)) for row in db.execute(sql))
+            matched = actual == expected
+            summary[table] = {'records': len(rows), 'restored_records': sum(actual.values()), 'matched': matched}
+            if not matched:
+                failures.append(table)
+                differences[table] = {'missing_sample': list((expected - actual).elements())[:10],
+                                      'extra_sample': list((actual - expected).elements())[:10]}
+        roots = [name for name in archive.namelist() if name.startswith('Root/') and not name.endswith('/')]
+        if not roots:
+            raise RecoveryError('No library configuration in archive')
+        root_failures = 0
+        for name in roots:
+            relative = Path(name).relative_to('Root')
+            target = config / 'root' / relative
+            if target.is_symlink() or (config / 'root').resolve() not in target.resolve().parents:
+                raise RecoveryError('Unsafe restored library configuration')
+            if not target.is_file() or hashlib.sha256(target.read_bytes()).digest() != hashlib.sha256(archive.read(name)).digest():
+                root_failures += 1
+        summary['LibraryConfig'] = {'files': len(roots), 'matched': root_failures == 0}
+        report.write_text(json.dumps(summary, indent=2) + '\n')
+        report.chmod(0o600)
+        detail = report.with_name('content-differences.json')
+        detail.write_text(json.dumps(differences, indent=2) + '\n')
+        detail.chmod(0o600)
+        for category, result in summary.items():
+            print(f'{category}: {"PASS" if result["matched"] else "FAIL"}; count={result.get("records", result.get("files"))}', flush=True)
+        if failures or root_failures:
+            raise RecoveryError('Restored content mismatch; inspect protected report, not production')
+    return summary
+
+
+def run(args, log, capture=False, env=None):
+    result = subprocess.run(args, stdout=subprocess.PIPE if capture else log,
+                            stderr=log, env=env, text=True)
+    if result.returncode:
+        raise RecoveryError('Command failed; inspect protected drill log')
+    return result.stdout.strip() if capture else None
+
+
+def validate_resume(path, snapshot, image):
+    if not re.fullmatch(r'/mnt/backup/jellyfin-restore-drill\.[A-Za-z0-9_\-]+', str(path)) or path.resolve() != path:
+        raise RecoveryError('Invalid resume directory')
+    if path.stat().st_uid != 0 or path.stat().st_mode & 0o077:
+        raise RecoveryError('Resume directory must be root-owned and private')
+    if (path / 'restored').is_symlink() or (path / 'drill.json').is_symlink():
+        raise RecoveryError('Resume targets must not be symlinks')
+    marker = json.loads((path / 'drill.json').read_text())
+    if marker != {'snapshot': snapshot, 'image': image}:
+        raise RecoveryError('Resume snapshot/image does not match original drill')
+    return path
+
+
+def startup_complete(log_text, importing):
+    if 'OutOfMemoryException' in log_text or 'Error while starting server' in log_text:
+        raise RecoveryError('Isolated startup/import failed; inspect protected container log')
+    return 'Startup complete' in log_text and (not importing or 'Restored Jellyfin system from' in log_text)
+
+
+def wait_healthy(name, log, container_log, importing):
+    # Setup endpoints can answer HTTP 200 before the archive import finishes.
+    for _ in range(180 if importing else 60):
+        with container_log.open('w') as output:
+            subprocess.run(['docker', 'logs', name], stdout=output, stderr=output)
+        complete = startup_complete(container_log.read_text(errors='replace'), importing)
+        response = subprocess.run(['docker', 'exec', name, 'curl', '--fail', '--silent', '--max-time', '5',
+                                   'http://127.0.0.1:8096/health'], stdout=log, stderr=log)
+        if complete and response.returncode == 0:
+            return
+        if run(['docker', 'inspect', name, '--format', '{{.State.Running}}'], log, capture=True) != 'true':
+            break
+        time.sleep(5)
+    raise RecoveryError('Isolated Jellyfin failed health check; inspect protected container log')
+
+
+def restore_sequence(start, wait, stop, verify):
+    """Initialization MUST precede archive import; verification follows shutdown."""
+    try:
+        start('bootstrap', False)
+        wait('bootstrap')
+        stop('bootstrap')
+        start('restored', True)
+        wait('restored')
+        stop('restored')
+        verify()
+    finally:
+        stop('restored', cleanup=True)
+        stop('bootstrap', cleanup=True)
+
+
+def drill(args):
+    if os.geteuid() != 0:
+        raise RecoveryError('Run the drill with interactive sudo on krof-desktop')
+    if not re.fullmatch(r'[0-9a-f]{8,64}', args.snapshot):
+        raise RecoveryError('Supply an explicit hexadecimal Restic snapshot ID, not latest')
+    image = image_from_manifest(args.manifest)
+    available = int(re.search(r'^MemAvailable:\s+(\d+)', Path('/proc/meminfo').read_text(), re.M)[1])
+    if available < 12 * 1024 * 1024:
+        raise RecoveryError('Need at least 12 GiB available host memory for the bounded 8 GiB restore test; retry when the desktop is idle')
+    # The archive and all plaintext state stay on the validated backup mount.
+    for mount, expected in [('/mnt/backup', '3180031e-abd5-4d6a-8aac-abe3e41dc950'),
+                             ('/mnt/data-drive-2tb', 'cb3505ce-970c-49c2-ad50-4bc07ddbe508')]:
+        result = subprocess.run(['findmnt', '-rn', '-M', mount, '-o', 'UUID,FSTYPE'], capture_output=True, text=True)
+        if result.returncode or result.stdout.split() != [expected, 'ext4']:
+            raise RecoveryError('Storage mount verification failed')
+    directory = (validate_resume(args.resume, args.snapshot, image) if args.resume else
+                 Path(tempfile.mkdtemp(prefix='jellyfin-restore-drill.', dir='/mnt/backup')))
+    (directory / 'drill.json').write_text(json.dumps({'snapshot': args.snapshot, 'image': image}))
+    attempt = Path(tempfile.mkdtemp(prefix='attempt.', dir=directory))
+    print(f'Protected drill artifacts: {attempt}', flush=True)
+    env = dict(os.environ, RESTIC_REPOSITORY='/mnt/backup/homelab/jellyfin/repository',
+               RESTIC_PASSWORD_FILE='/etc/restic/jellyfin-password')
+    with (attempt / 'commands.log').open('w') as log:
+        snapshots = json.loads(run(['restic', 'snapshots', '--json', args.snapshot], log, capture=True, env=env))
+        if len(snapshots) != 1 or snapshots[0]['hostname'] != 'krof-desktop' or 'jellyfin' not in snapshots[0].get('tags', []):
+            raise RecoveryError('Snapshot must belong to this Jellyfin backup')
+        run(['docker', 'image', 'inspect', image], log)
+        restored = directory / 'restored'
+        run(['restic', 'restore', args.snapshot, '--target', str(restored), '--verify'], log, env=env)
+        archive = choose_archive(restored, image)
+        config, cache = attempt / 'config', attempt / 'cache'
+        config.mkdir(mode=0o700)
+        cache.mkdir(mode=0o700)
+        token = uuid.uuid4().hex[:12]
+        names = {role: 'jellyfin-drill-' + token + '-' + role for role in ['bootstrap', 'restored']}
+        started = set()
+
+        def start(role, importing):
+            cmd = ['docker', 'run', '--detach', '--pull', 'never', '--name', names[role],
+                   '--label', 'homelab.restore-drill=jellyfin', '--network', 'none', '--restart', 'no',
+                   '--cpus', '2', '--memory', '8g', '--memory-swap', '8g', '--pids-limit', '256', '--cap-drop', 'ALL',
+                   '--security-opt', 'no-new-privileges',
+                   '--mount', f'type=bind,src={config},dst=/config',
+                   '--mount', f'type=bind,src={cache},dst=/cache',
+                   '--mount', f'type=bind,src={archive},dst=/restore/archive.zip,readonly',
+                   '--mount', 'type=bind,src=/mnt/data-drive-2tb/Media,dst=/media,readonly', image]
+            if importing:
+                cmd += ['--restore-archive', '/restore/archive.zip']
+            started.add(role)
+            run(cmd, log)
+
+        def stop(role, cleanup=False):
+            if role not in started:
+                return
+            result = subprocess.run(['docker', 'stop', '--time', '30', names[role]], stdout=log, stderr=log)
+            if result.returncode and not cleanup:
+                raise RecoveryError('Could not cleanly stop test instance')
+            with (attempt / (role + '.log')).open('w') as container_log:
+                subprocess.run(['docker', 'logs', names[role]], stdout=container_log, stderr=container_log)
+
+        restore_sequence(start, lambda role: wait_healthy(names[role], log, attempt / (role + '.log'), role == 'restored'), stop,
+                         lambda: verify_content(archive, config, attempt / 'content-report.json'))
+    print('PASS: file recovery, archive integrity, initialized restore, health, and selected content match')
+    print('Test containers stopped; artifacts retained. Production configuration was never mounted.')
+
+
+def main():
+    os.umask(0o077)
+    def interrupted(signum, frame):
+        raise RecoveryError('Drill interrupted; stopping its test containers')
+    signal.signal(signal.SIGTERM, interrupted)
+    signal.signal(signal.SIGINT, interrupted)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('snapshot', help='explicit Restic snapshot ID')
+    parser.add_argument('--resume', type=Path, help='private directory from a previous tracked drill')
+    default_manifest = next((p / 'kubernetes/apps/jellyfin/server.yaml' for p in Path(__file__).resolve().parents
+                             if (p / 'kubernetes/apps/jellyfin/server.yaml').is_file()), Path(__file__).with_name('server.yaml'))
+    parser.add_argument('--manifest', type=Path, default=default_manifest)
+    args = parser.parse_args()
+    try:
+        drill(args)
+    except (RecoveryError, OSError, ValueError, sqlite3.Error, zipfile.BadZipFile) as exc:
+        # Paths/user data/SQLite values from an exception must not reach logs.
+        message = str(exc) if isinstance(exc, RecoveryError) else 'Recovery inspection failed; inspect protected artifacts'
+        print('FAIL: ' + message, file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

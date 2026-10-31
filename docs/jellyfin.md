@@ -1,13 +1,18 @@
 # Jellyfin operations
 
-Jellyfin declares one Kubernetes replica and an enabled daily backup CronJob.
-Stop Compose before merging the activation change: the two instances share
-SQLite state and must never run simultaneously. Follow the cutover procedure
-below, including backup verification and the rollback sequence.
+Jellyfin is running as one Kubernetes replica with an enabled daily backup
+CronJob. LAN access, private Tailscale HTTPS, and production users, libraries,
+watch history, playback, and applicable transcoding checks were confirmed by
+the operator after cutover. Compose remains stopped for rollback.
+
+The two instances share SQLite state and must never run simultaneously. The
+historical cutover checklist below also applies to any future reactivation.
 
 Retained storage, the SOPS-managed API key, Service, and Tailscale Ingress are
-managed by Argo CD. Host scripts and systemd units require manual installation;
-enable the Restic timer only after Kubernetes backup verification succeeds.
+managed by Argo CD. Host backup assets are installed and the 04:30 Manila timer
+is enabled; merging Git changes does not update installed host files. Manual
+archive creation and Restic snapshots/checks passed. Scheduled-chain evidence
+is a separate acceptance check, described below.
 
 ## Deployment contract
 
@@ -43,7 +48,7 @@ The encrypted `jellyfin-backup-api-key` Secret contains a dedicated credential.
 During initial staging it used an unusable placeholder. If bootstrapping again
 or deliberately replacing the credential:
 
-1. In the running Compose instance, create a dedicated API key named
+1. In the running Jellyfin instance, create a dedicated API key named
    `homelab-jellyfin-backup` under **Dashboard > API Keys**.
 2. Set `SOPS_AGE_KEY_FILE` to the protected homelab age identity.
 3. Edit
@@ -72,7 +77,7 @@ hours, then retains 7 daily, 4 weekly, and 6 monthly snapshots and runs
 `restic check`. A candidate archive must be nonempty and pass `unzip -tqq`
 before it counts as fresh; a ZIP still being written does not satisfy this gate.
 
-These are manual cutover operations, not staging-PR steps. Verify both mount
+These are manual host operations, not automatic GitOps steps. Verify both mount
 UUIDs against the script, the host timezone, `restic` and `unzip` availability,
 and the source configuration directories before installation. Initialize the
 dedicated repository and password file only if they do not already exist;
@@ -80,15 +85,33 @@ never overwrite an existing password or reinitialize an existing repository.
 Then install the tracked host files:
 
 ```bash
-sudo install -d -m 0700 /mnt/backup/homelab/jellyfin/repository
-sudo install -d -m 0700 /etc/restic
-sudo install -m 0600 /dev/null /etc/restic/jellyfin-password
-sudoedit /etc/restic/jellyfin-password
-
-sudo env \
-  RESTIC_REPOSITORY=/mnt/backup/homelab/jellyfin/repository \
-  RESTIC_PASSWORD_FILE=/etc/restic/jellyfin-password \
+sudo bash <<'ROOT'
+set -euo pipefail
+umask 077
+repository=/mnt/backup/homelab/jellyfin/repository
+password=/etc/restic/jellyfin-password
+[[ "$(findmnt -rn -M /mnt/backup -o UUID)" == 3180031e-abd5-4d6a-8aac-abe3e41dc950 ]]
+[[ "$(findmnt -rn -M /mnt/backup -o FSTYPE)" == ext4 ]]
+[[ ! -L "$repository" && ! -L "$password" ]]
+if [[ -f "$repository/config" && ! -s "$password" ]]; then
+  echo 'Existing repository requires its existing password' >&2; exit 1
+fi
+if [[ -d "$repository" && ! -f "$repository/config" &&
+      -n "$(find "$repository" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+  echo 'Nonempty directory without Restic config; inspect manually' >&2; exit 1
+fi
+if [[ ! -e "$password" ]]; then
+  install -d -m 0700 /etc/restic
+  (set -o noclobber; openssl rand -base64 48 >"$password")
+fi
+[[ -s "$password" && "$(stat -c '%u:%a' "$password")" == 0:600 ]]
+export RESTIC_REPOSITORY="$repository" RESTIC_PASSWORD_FILE="$password"
+if [[ ! -f "$repository/config" ]]; then
+  install -d -m 0700 "$repository"
   restic init
+fi
+restic snapshots >/dev/null
+ROOT
 
 sudo install -m 0755 \
   host/krof-desktop/backup/jellyfin/jellyfin-restic-backup \
@@ -102,6 +125,12 @@ sudo install -m 0644 \
 sudo systemctl daemon-reload
 ```
 
+The credential block never truncates an existing password or reinitializes an
+existing repository. Preserve an independent recovery copy if a new password
+is generated. SSH commands from this project normally use
+`kurtening@krof-desktop`; privileged checks/installations require interactive
+sudo. Never send a sudo password, Restic password, or age identity through chat.
+
 Leave the timer disabled until the real API key is configured, Kubernetes
 Jellyfin is running, and a manually triggered CronJob has produced a valid
 archive. After the host service succeeds and its snapshot is verified, enable
@@ -110,7 +139,7 @@ the timer with `sudo systemctl enable --now jellyfin-restic-backup.timer`.
 The repository is on a separate local device, but it remains inside the same
 desktop and is not off-site protection. `restic check` is not a restore test.
 
-## Cutover
+## Cutover reference (completed)
 
 1. Merge the staged resources while `Deployment.spec.replicas` is `0` and
    `CronJob.spec.suspend` is `true`.
@@ -160,10 +189,95 @@ future version upgrade may migrate the database; reverting the image after such
 an upgrade requires restoring a compatible backup rather than merely changing
 the image tag.
 
-## Restore verification
+## Repeatable restore verification
 
-Before describing the backup as recoverable, restore a built-in archive into an
-isolated Jellyfin instance pinned to the same version. Use a copied temporary
-state directory, do not mount production state read-write, and verify users,
-libraries, and watch history. Deleting or replacing production state requires a
-separate reviewed recovery procedure.
+The tracked `host/krof-desktop/backup/jellyfin/jellyfin-restore-drill` uses Python
+3's standard library, Restic, Docker, and an already-present image matching the
+tracked server manifest. Copy the helper and that manifest to the host, then
+run it with interactive sudo:
+
+```bash
+scp host/krof-desktop/backup/jellyfin/jellyfin-restore-drill \
+  kubernetes/apps/jellyfin/server.yaml kurtening@krof-desktop:/tmp/
+ssh -t kurtening@krof-desktop \
+  'sudo python3 /tmp/jellyfin-restore-drill SNAPSHOT_ID --manifest /tmp/server.yaml'
+```
+
+Replace `SNAPSHOT_ID` with an explicit Jellyfin snapshot ID, not `latest`.
+For resumption add `--resume /mnt/backup/jellyfin-restore-drill.RUN_ID`; only
+private, root-owned directories created by this helper with matching snapshot
+and image metadata are accepted. Each attempt gets fresh test state and unique
+container names. Legacy ad-hoc drill directories have no resume marker and are
+not accepted; retain them for inspection instead of changing their metadata.
+
+The drill verifies the expected mount UUIDs and restores files with
+`restic restore --verify`. It finds the newest Jellyfin ZIP inside the restore
+tree, checks its integrity and version, and refuses missing/corrupt archives
+rather than silently falling back to older data.
+
+Initialize a fresh isolated database **before** importing the archive: this
+Jellyfin version restores before initial schema migrations. The helper uses
+two stopped-between-stages containers with network disabled, no published
+ports, two CPUs, an 8 GiB memory/swap ceiling, and read-only media. It requires
+at least 12 GiB available host memory; defer the drill during gaming or other
+heavy desktop use. Production configuration is never mounted.
+
+HTTP health alone is insufficient: the setup endpoint may answer before the
+import completes. Require the explicit restore-completion and startup log
+markers, then cleanly stop the test server and compare the archive's users,
+catalog IDs/paths/types, played/resume fields, and library configuration against
+the restored database/files. The archive is the point-in-time baseline, not
+the evolving production database. Missing fields or mismatches fail the drill.
+
+Console output contains counts and PASS/FAIL only. Logs, aggregate reports, and
+sample differences remain in private host artifact directories. The helper
+stops its containers on success/failure but never deletes diagnostic state.
+Run synthetic coverage locally with:
+
+```bash
+python3 scripts/test-jellyfin-recovery.py
+```
+
+### Verified scope and remaining recovery gaps
+
+On November 1, 2026, the stricter isolated drill verified Restic file recovery,
+ZIP integrity, archive import completion, healthy startup, user identities,
+catalog mappings, library definitions, and watch/resume records. The earlier
+2 GiB health-only attempt ran out of memory during import and was a false
+positive; it is not recovery evidence. Production remained unaffected.
+
+The Restic password recovery copy is operator-confirmed. On November 1, 2026,
+the operator verified the independent vault copy of the SOPS age identity:
+its derived public recipient matched `.sops.yaml` and it decrypted repository
+ciphertext silently. No identity rotation was performed. This application
+drill does not prove host-loss recovery, media recovery, or off-machine backup
+availability. Media and disposable cache are deliberately excluded from this
+Restic repository.
+
+## Scheduled backup acceptance and rollback retention
+
+The first scheduled chain must be checked after 04:30 Manila time, allowing
+until 05:15 for completion. Copy the read-only helper to the host and run:
+
+```bash
+scp host/krof-desktop/backup/jellyfin/jellyfin-backup-status kurtening@krof-desktop:/tmp/
+ssh -t kurtening@krof-desktop 'sudo python3 /tmp/jellyfin-backup-status'
+```
+
+It requires a successful CronJob-owned Job with the scheduled-time annotation
+and rejects `cronjob.kubernetes.io/instantiate: manual` (manual cutover Jobs
+also have CronJob owner references). It correlates the archive's creation time,
+ZIP integrity, and size/mtime in a later Restic snapshot, then checks the
+enabled timer's trigger and successful service result. Exit 0 is verified,
+2 is pending, and 1 is a failed/unverifiable check. The snapshot listing proves
+inclusion; the separately tested restore establishes recoverability.
+
+At this update only the manual chain is verified; do not label it scheduled
+evidence. If the desktop is off, record the check as pending and verify the
+next completed cycle. Keep a private record of seven successful scheduled
+cycles before considering retirement of stopped Compose.
+
+Inventory the exact stopped test containers and plaintext restore directories
+before cleanup. Retain them until content verification/evidence is recorded,
+then request approval for those exact targets. Do not automatically delete
+Compose, production paths, Restic repositories, credentials, or drill artifacts.

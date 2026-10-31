@@ -197,7 +197,7 @@ flush world saves, snapshots the full Minecraft data directory, resumes saves,
 applies the same 7-daily/4-weekly/6-monthly retention policy, and runs
 `restic check`. The exit trap attempts to resume saves if the backup fails.
 
-`restic check` validates repository structure; it does not prove that the application can be restored. The repository has no tested cold-restore procedure, automated secret recovery, or off-machine backup. Protection from primary-disk failure is conditional on `/mnt/backup` being an independent healthy device. A device inside the same desktop still does not protect against theft, fire, total-machine loss, or every malware and electrical failure scenario.
+`restic check` validates repository structure; it does not prove that the application can be restored. Jellyfin has a verified isolated application restore, including selected content comparisons. A complete host-loss procedure, automated secret recovery, and off-machine backup remain absent. Protection from primary-disk failure is conditional on `/mnt/backup` being an independent healthy device. A device inside the same desktop still does not protect against theft, fire, total-machine loss, or every malware and electrical failure scenario.
 
 The host backup is tightly coupled to the Immich namespace, PostgreSQL pod and container names, database name, host paths, K3s binary location, Restic repository, and password file. Kubernetes or host changes to those interfaces must be reviewed together.
 
@@ -207,6 +207,17 @@ A separate host timer backs up those archives and static configuration to
 `/mnt/backup/homelab/jellyfin/repository`. It deliberately excludes media and
 cache data. The Jellyfin and Immich repositories use separate password files
 and retention operations.
+
+Jellyfin's November 1, 2026 recovery drill verified restored files, archive
+import completion, startup, identities, catalog mappings, library definitions,
+and played/resume records against the archive. The tracked drill first
+initializes an isolated schema and uses a bounded 8 GiB container; the initial
+2 GiB health-only test was insufficient and is not accepted evidence. Host
+backup installation and manual execution passed, and the timer is enabled.
+The independent age-identity vault copy passed recipient matching and silent
+decryption verification. The first scheduled-chain check remains pending;
+see `docs/jellyfin.md`. Neither the drill nor the
+local Restic repository recovers excluded media after total machine loss.
 
 ## GitHub repository infrastructure
 
