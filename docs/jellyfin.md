@@ -24,6 +24,14 @@ The media mount preserves the configured library paths `/media/Anime`,
 host-specific local volumes bound to `krof-desktop`; their declared capacities
 control Kubernetes binding and do not impose filesystem quotas.
 
+The migrated state contains files owned by both root and UID 1000. The server
+runs as root with all capabilities dropped except `DAC_OVERRIDE`, allowing it
+to access that existing state without recursive ownership changes. Keep
+`allowPrivilegeEscalation: false`, RuntimeDefault seccomp, and the read-only
+media mount. Moving to a non-root runtime requires a separately reviewed
+ownership migration; changing only `runAsUser` will break access to existing
+files.
+
 Jellyfin uses the immutable official 10.11.11 image digest recorded in the
 Deployment. Stable upgrades are explicit GitOps changes and require a backup,
 release-note review, and a new verified image digest. Do not replace it with the
