@@ -191,11 +191,16 @@ The Restic repository is stored under `/mnt/backup/homelab/immich/repository`. I
 
 The database dump is consistent when created, but Immich remains available while Restic reads the library. The database dump and media snapshot are therefore not guaranteed to represent one atomic point in time.
 
-Minecraft uses a separate host-level Restic job scheduled for 05:30 local time.
+Minecraft's tracked host-level Restic job is scheduled for 05:30 Asia/Manila.
+The November 1, 2026 host preflight found its repository/password usable but no
+matching snapshots and no installed job. Installation, first verified backup,
+independent credential custody and timer activation remain separate acceptance
+steps; tracked assets alone do not provide coverage. See `docs/minecraft.md`.
 It validates the same two storage devices, uses in-container RCON to suspend and
 flush world saves, snapshots the full Minecraft data directory, resumes saves,
 applies the same 7-daily/4-weekly/6-monthly retention policy, and runs
-`restic check`. The exit trap attempts to resume saves if the backup fails.
+`restic check`. A lock rejects overlapping runs; bounded RCON/copy operations
+and an exit trap attempt to resume saves if the backup fails.
 
 `restic check` validates repository structure; it does not prove that the application can be restored. Jellyfin has a verified isolated application restore, including selected content comparisons. Immich has a verified isolated full database/media restore and v3.3.5 migration rehearsal, including selected metadata and original-file checksum comparisons; production acceptance and post-upgrade backups also passed. See `docs/immich.md` for distinct evidence and the missed final pre-upgrade checkpoint. Neither application's drill proves complete host-loss recovery. A complete host-loss procedure, automated secret recovery, and off-machine backup remain absent. Protection from primary-disk failure is conditional on `/mnt/backup` being an independent healthy device. A device inside the same desktop still does not protect against theft, fire, total-machine loss, or every malware and electrical failure scenario.
 

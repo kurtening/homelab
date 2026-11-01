@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""Verify an explicit snapshot in a fresh private directory; never start a server."""
+import argparse
+import gzip
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+SOURCE = '/mnt/data-drive-2tb/homelab/minecraft'
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('snapshot', help='explicit snapshot ID, not latest')
+    arguments = parser.parse_args()
+    if not re.fullmatch(r'[0-9a-f]{8,64}', arguments.snapshot):
+        raise RuntimeError('an explicit hexadecimal snapshot ID is required')
+    checker = Path(__file__).with_name('check-minecraft-backup')
+    subprocess.run([sys.executable, str(checker)], check=True, timeout=180)
+    environment = dict(os.environ, RESTIC_REPOSITORY='/mnt/backup/homelab/minecraft/repository',
+                       RESTIC_PASSWORD_FILE='/etc/restic/minecraft-password')
+
+    def metadata(*command):
+        result = subprocess.run(['restic', '--no-cache', *command], env=environment,
+                                capture_output=True, timeout=300, check=False)
+        if result.returncode != 0:
+            raise RuntimeError('could not read selected snapshot metadata')
+        return json.loads(result.stdout)
+
+    snapshot = metadata('cat', 'snapshot', arguments.snapshot)
+    if (snapshot.get('hostname') != 'krof-desktop'
+            or 'minecraft' not in snapshot.get('tags', [])
+            or snapshot.get('paths') != [SOURCE]):
+        raise RuntimeError('selected snapshot does not match the Minecraft source contract')
+    size = metadata('stats', '--json', '--mode', 'restore-size', arguments.snapshot)['total_size']
+    if shutil.disk_usage('/mnt/backup').free < size * 1.1 + 104857600:
+        raise RuntimeError('insufficient free space for isolated file verification')
+    directory = Path(tempfile.mkdtemp(prefix='minecraft-restore-check.', dir='/mnt/backup'))
+    print(f'Protected recovery artifacts: {directory}', flush=True)
+    # Retain files/logs on failure. The private parent protects restored ownership/modes.
+    os.umask(0o077)
+    with (directory / 'restore.log').open('wb') as log:
+        result = subprocess.run(['restic', '--no-cache', 'restore', arguments.snapshot,
+                                 '--target', str(directory / 'restored'), '--verify'],
+                                env=environment, stdout=log, stderr=subprocess.STDOUT,
+                                timeout=7200, check=False)
+    if result.returncode != 0:
+        raise RuntimeError('Restic restore/verification failed; inspect protected artifacts locally')
+    # Restic can preserve absolute source paths or produce a relative layout.
+    candidates = list((directory / 'restored').rglob('world/level.dat'))
+    if len(candidates) != 1 or not candidates[0].is_file() or candidates[0].stat().st_size == 0:
+        raise RuntimeError('expected exactly one nonempty restored world metadata file')
+    with gzip.open(candidates[0], 'rb') as world:
+        while world.read(1024 * 1024):
+            pass
+    print('PASS: explicit snapshot file restore/verification and world metadata gzip integrity')
+    print('Application startup/gameplay remain untested; production unchanged; artifacts retained')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (RuntimeError, OSError, EOFError, ValueError, KeyError, subprocess.SubprocessError) as error:
+        message = str(error) if type(error) is RuntimeError else 'protected recovery check failed; inspect locally'
+        print(f'FAIL: {message}', file=sys.stderr)
+        sys.exit(1)

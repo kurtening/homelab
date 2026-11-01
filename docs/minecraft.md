@@ -2,7 +2,8 @@
 
 Minecraft runs as a private, single-instance Java Edition server on the
 `krof-desktop` K3s node. Argo CD owns the Kubernetes workload, while the world
-uses retained local storage and a host-installed Restic job.
+uses retained local storage. Restic job assets are tracked here, but their
+installation and verification are separate host operations.
 
 The Deployment runs one replica. Its retained storage directory, bootstrap seed,
 Restic repository, and tailnet access are required runtime dependencies.
@@ -46,28 +47,17 @@ sudo install -d -o 1000 -g 1000 -m 0750 \
   /mnt/data-drive-2tb/homelab/minecraft
 ```
 
-Create a dedicated Restic password and repository without placing the password
-in the worktree or shell history:
+Do not regenerate credentials or initialize a repository merely because the
+backup service is missing. The November 1, 2026 read-only host check found an
+existing repository and a working dedicated password, but **zero matching
+snapshots** and no installed backup executable/service/timer. That is not backup
+coverage. Preserve the existing password and repository.
 
-```bash
-backup_secret_dir="$(mktemp -d)"
-chmod 0700 "${backup_secret_dir}"
-openssl rand -base64 48 >"${backup_secret_dir}/minecraft-password"
-
-sudo install -d -m 0700 /etc/restic
-sudo install -m 0600 \
-  "${backup_secret_dir}/minecraft-password" \
-  /etc/restic/minecraft-password
-sudo install -d -m 0700 /mnt/backup/homelab/minecraft/repository
-
-sudo env \
-  RESTIC_REPOSITORY=/mnt/backup/homelab/minecraft/repository \
-  RESTIC_PASSWORD_FILE=/etc/restic/minecraft-password \
-  restic init
-
-rm -f -- "${backup_secret_dir}/minecraft-password"
-rmdir -- "${backup_secret_dir}"
-```
+For a genuinely new host, provision a dedicated password and repository only
+after verifying both are absent and the expected independent backup device is
+mounted. A missing password beside existing ciphertext is a recovery problem,
+not permission to create a replacement password. Stop and recover the existing
+credential rather than initializing or overwriting anything.
 
 The Restic password requires independent recovery. The local repository does
 not protect against theft, fire, or loss of the entire desktop.
@@ -151,42 +141,108 @@ The RCON port is cluster-internal and is not exposed by a Service.
 
 ## Backup installation and verification
 
-A merge records the backup files but does not install them. After the server is
-active, install the script and units manually on `krof-desktop`:
+A merge records the backup files but does not install them. Use a reviewed copy
+of `host/krof-desktop/backup/minecraft/` on `krof-desktop`; development is normally
+on a separate laptop. Root checks and installation need a private local terminal
+with interactive sudo (`ssh -t` remotely). Never send sudo/Restic passwords to
+chat or pass passwords as command arguments.
+
+Run the read-only preflight first from that directory:
 
 ```bash
-sudo install -m 0755 \
-  host/krof-desktop/backup/minecraft/minecraft-restic-backup \
-  /usr/local/sbin/minecraft-restic-backup
-sudo install -m 0644 \
-  host/krof-desktop/backup/minecraft/minecraft-restic-backup.service \
-  /etc/systemd/system/minecraft-restic-backup.service
-sudo install -m 0644 \
-  host/krof-desktop/backup/minecraft/minecraft-restic-backup.timer \
-  /etc/systemd/system/minecraft-restic-backup.timer
-
-sudo systemctl daemon-reload
-sudo systemctl enable --now minecraft-restic-backup.timer
+sudo python3 ./check-minecraft-backup
 ```
 
-The daily 05:30 Asia/Manila job validates both mounts, asks Minecraft to flush
+It checks exact writable mount identities, nonempty world metadata, a protected
+existing password and read-only repository access; only aggregate results are
+printed. It does not read/display player data or initialize anything. If it
+fails, resolve the prerequisite without replacing existing credentials.
+
+After review, install with:
+
+```bash
+sudo bash ./install-minecraft-backup
+```
+
+The installer refuses the wrong host, existing destination files/symlinks or an
+existing service. It installs only Minecraft backup files and validates their
+units. **It does not enable the timer or start a backup.** If validation fails
+after copying, leave the timer disabled and inspect the installed files before
+retrying; do not overwrite them blindly.
+
+The daily 05:30 **Asia/Manila** job validates both mounts, asks Minecraft to flush
 and suspend world saves, snapshots the full data directory, immediately resumes
 saves, applies 7-daily/4-weekly/6-monthly retention, and runs `restic check`.
-Its exit trap attempts to resume saves after any failure.
+It refuses overlapping invocations. RCON is bounded to 60 seconds per request;
+the copy is bounded to two hours. Recovery is armed before `save-off`, so an
+ambiguous transport failure still attempts `save-on`. INT/TERM also exit through
+that trap. This is best-effort recovery, not a guarantee through SIGKILL, host
+loss, or an unreachable server. If recovery fails, use the in-container RCON
+client to issue `save-on` and investigate before retrying. Never leave saving
+disabled to make a failed backup appear successful. RCON coordinates world
+flushes; a live full-directory copy is not an atomic snapshot of every changing
+log/configuration file or a tested full application recovery.
 
 Run the first backup explicitly and inspect its result:
 
 ```bash
 sudo systemctl start minecraft-restic-backup.service
-sudo systemctl status minecraft-restic-backup.service
-sudo journalctl --unit minecraft-restic-backup.service --since today
+sudo systemctl show minecraft-restic-backup.service \
+  --property=Result --property=ExecMainStatus --property=ExecMainExitTimestamp
+sudo env RESTIC_REPOSITORY=/mnt/backup/homelab/minecraft/repository \
+  RESTIC_PASSWORD_FILE=/etc/restic/minecraft-password \
+  restic snapshots --host krof-desktop --tag minecraft --latest 1
 ```
 
-For a non-destructive restore check, restore the latest snapshot into a protected
-temporary directory on a filesystem with enough free space and verify that it
-contains a non-empty `level.dat`. Do not restore over the live data directory.
-This checks Restic retrieval and basic world presence, not a complete cold-start
-recovery drill.
+Inspect any journal failure locally; do not paste raw logs/player data. Confirm
+the selected snapshot includes the intended full data root. Restore that
+**explicit snapshot ID** using the reviewed helper from that same host directory:
+
+```bash
+sudo python3 ./verify-minecraft-recovery SNAPSHOT_ID
+```
+
+It checks the snapshot's host/tag/source contract and available space, restores
+with verification into a new mode-0700 directory on the verified backup device,
+locates nonempty `world/level.dat` without assuming an absolute restore layout,
+and gzip-tests it without printing contents. Retain protected drill output until
+cleanup is explicitly approved.
+This checks verified file retrieval and world metadata, **not** isolated server
+startup, gameplay, or complete host-loss recovery. Never mount restored data
+into production or start a second server against the live world.
+
+Save the existing `/etc/restic/minecraft-password` independently as
+**Homelab — Minecraft Restic recovery password** in the vault, distinct from
+Immich, Jellyfin and the SOPS identity. Verify the saved copy at a hidden prompt
+against this repository, without printing/writing the candidate or passing it
+in command arguments:
+
+```bash
+sudo python3 ./check-minecraft-backup --verify-vault-password
+```
+
+Custody is pending until that comparison succeeds. Do not substitute the
+Minecraft seed/RCON password or another application's Restic password.
+
+Only after successful manual backup, isolated file verification and recovery
+custody, enable scheduling explicitly:
+
+```bash
+sudo systemctl enable --now minecraft-restic-backup.timer
+sudo systemctl list-timers minecraft-restic-backup.timer --no-pager
+```
+
+The timer is persistent: a missed run may execute after the desktop boots.
+Its first genuine scheduled success must be verified separately from the manual
+test. Monitoring's next minute-based collection will discover the unit and its
+observed result automatically; no monitoring restart or alert suppression is
+needed. An installed unit alone must not be reported as successful backup.
+
+For rollback of this new host installation, disable only
+`minecraft-restic-backup.timer`. If the service is active, let it finish when
+possible; if stopped, confirm `save-on` succeeds. Leave the installed files,
+repository, password and restore evidence in place for review. No world/PVC,
+server Deployment, existing backup service, or monitoring change is required.
 
 ## Rollback and recovery
 
