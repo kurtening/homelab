@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Explicit operator action after review. Installs only this new collector.
+set -euo pipefail
+[[ ${EUID} -eq 0 ]] || { echo 'Run with interactive sudo after reviewing the files' >&2; exit 1; }
+[[ $(hostname -s) == krof-desktop ]] || { echo 'Wrong host; no installation performed' >&2; exit 1; }
+source_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+for destination in /usr/local/sbin/homelab-metrics /etc/systemd/system/homelab-metrics.service /etc/systemd/system/homelab-metrics.timer; do
+  [[ ! -e ${destination} && ! -L ${destination} ]] || { echo 'Existing collector files detected; preserve/review before updating' >&2; exit 1; }
+done
+getent group systemd-journal >/dev/null
+command -v python3 >/dev/null
+command -v findmnt >/dev/null
+command -v busctl >/dev/null
+python3 "${source_directory}/homelab-metrics" --check
+install -o root -g root -m 0755 "${source_directory}/homelab-metrics" /usr/local/sbin/homelab-metrics
+install -o root -g root -m 0644 "${source_directory}/homelab-metrics.service" /etc/systemd/system/homelab-metrics.service
+install -o root -g root -m 0644 "${source_directory}/homelab-metrics.timer" /etc/systemd/system/homelab-metrics.timer
+systemd-analyze verify /etc/systemd/system/homelab-metrics.service /etc/systemd/system/homelab-metrics.timer
+systemctl daemon-reload
+systemctl enable --now homelab-metrics.timer
+systemctl start homelab-metrics.service
+systemctl show homelab-metrics.service --property=Result --property=ExecMainStatus
+echo 'Collector installed; existing backup services/timers were not changed. Monitoring activation remains separate.'

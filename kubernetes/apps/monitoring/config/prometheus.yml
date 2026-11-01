@@ -1,0 +1,63 @@
+global:
+  scrape_interval: 60s
+  evaluation_interval: 60s
+rule_files: [/etc/prometheus/alerts.yml]
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: [alertmanager:9093]
+scrape_configs:
+  - job_name: monitoring
+    sample_limit: 20000
+    static_configs:
+      - targets: [prometheus:9090, alertmanager:9093, loki:3100, alloy:12345, blackbox-exporter:9115]
+  - job_name: node
+    sample_limit: 20000
+    static_configs:
+      - targets: [node-exporter:9100]
+  - job_name: kube-state-metrics
+    sample_limit: 20000
+    static_configs:
+      - targets: [kube-state-metrics:8080]
+  - job_name: argocd
+    sample_limit: 20000
+    static_configs:
+      - targets: [argocd-metrics.argocd.svc:8082]
+  - job_name: kubelet
+    scheme: https
+    authorization:
+      credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    kubernetes_sd_configs:
+      - role: node
+    metrics_path: /metrics/cadvisor
+    sample_limit: 20000
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'container_(cpu_usage_seconds_total|memory_working_set_bytes|spec_memory_limit_bytes|oom_events_total)'
+        action: keep
+      - regex: 'id|image|container_label_.+'
+        action: labeldrop
+  - job_name: application-http
+    metrics_path: /probe
+    params: {module: [http_2xx]}
+    static_configs:
+      - targets: [http://immich-server.immich.svc:2283/api/server/ping]
+        labels: {application: immich}
+      - targets: [http://jellyfin.jellyfin.svc:8096/health]
+        labels: {application: jellyfin}
+    relabel_configs:
+      - {source_labels: [__address__], target_label: __param_target}
+      - {source_labels: [application], target_label: instance}
+      - {target_label: __address__, replacement: 'blackbox-exporter:9115'}
+  - job_name: application-tcp
+    metrics_path: /probe
+    params: {module: [tcp_connect]}
+    static_configs:
+      - targets: [minecraft.minecraft.svc:25565]
+        labels: {application: minecraft}
+    relabel_configs:
+      - {source_labels: [__address__], target_label: __param_target}
+      - {source_labels: [application], target_label: instance}
+      - {target_label: __address__, replacement: 'blackbox-exporter:9115'}

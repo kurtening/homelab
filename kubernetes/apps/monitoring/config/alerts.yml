@@ -1,0 +1,87 @@
+groups:
+  - name: homelab
+    rules:
+      - alert: BackupFailed
+        expr: (homelab_backup_last_failure_timestamp_seconds > homelab_backup_last_success_timestamp_seconds) or (homelab_backup_service_failed == 1)
+        for: 5m
+        labels: {severity: critical}
+      - alert: BackupMetadataUnknown
+        expr: (homelab_backup_success_known == 0 or homelab_backup_service_available == 0) and on() (time() - node_boot_time_seconds > 3600)
+        for: 5m
+        labels: {severity: warning}
+      - alert: BackupStale
+        expr: (time() - homelab_backup_last_success_timestamp_seconds > 93600) and (homelab_backup_success_known == 1) and (homelab_backup_service_running == 0) and on() (time() - node_boot_time_seconds > 3600)
+        for: 15m
+        labels: {severity: warning}
+      - alert: BackupRunningLong
+        expr: (time() - homelab_backup_last_run_timestamp_seconds > 7200) and (homelab_backup_service_running == 1)
+        for: 5m
+        labels: {severity: warning}
+      - alert: MetadataCollectorMissing
+        expr: absent(homelab_collector_last_success_timestamp_seconds) or (time() - homelab_collector_last_success_timestamp_seconds > 180) or node_textfile_scrape_error > 0
+        for: 5m
+        labels: {severity: critical}
+      - alert: StorageMountWrong
+        expr: homelab_storage_mount_valid == 0
+        for: 5m
+        labels: {severity: critical}
+      - alert: FilesystemLow
+        expr: ((node_filesystem_avail_bytes / node_filesystem_size_bytes < 0.15) or (node_filesystem_files_free / node_filesystem_files < 0.15)) and on(instance,device,mountpoint) (node_filesystem_readonly == 0)
+        for: 30m
+        labels: {severity: warning}
+      - alert: FilesystemLow
+        expr: ((node_filesystem_avail_bytes / node_filesystem_size_bytes < 0.05) or (node_filesystem_files_free / node_filesystem_files < 0.05)) and on(instance,device,mountpoint) (node_filesystem_readonly == 0)
+        for: 5m
+        labels: {severity: critical}
+      - alert: WorkloadUnavailable
+        expr: (kube_deployment_status_replicas_available < kube_deployment_spec_replicas) or (kube_statefulset_status_replicas_ready < kube_statefulset_replicas) or (kube_daemonset_status_number_available < kube_daemonset_status_desired_number_scheduled)
+        for: 10m
+        labels: {severity: critical}
+      - alert: PersistentVolumeClaimUnbound
+        expr: kube_persistentvolumeclaim_status_phase{phase=~"Pending|Lost"} == 1
+        for: 15m
+        labels: {severity: warning}
+      - alert: FilesystemReadOnly
+        expr: node_filesystem_readonly{mountpoint=~"/|/mnt/data-drive-2tb|/mnt/backup"} == 1
+        for: 5m
+        labels: {severity: critical}
+      - alert: ApplicationUnavailable
+        expr: probe_success == 0
+        for: 10m
+        labels: {severity: critical}
+      - alert: BackupCronJobFailed
+        expr: (kube_job_failed{namespace="jellyfin",condition="true"} == 1) and on(namespace,job_name) kube_job_owner{owner_kind="CronJob",owner_name="jellyfin-backup"} unless on(namespace,job_name) kube_job_annotations{annotation_cronjob_kubernetes_io_instantiate="manual"}
+        for: 5m
+        labels: {severity: critical, application: jellyfin}
+      - alert: ArgoDegraded
+        expr: argocd_app_info{health_status="Degraded"} == 1
+        for: 10m
+        labels: {severity: critical}
+      - alert: ArgoOutOfSync
+        expr: argocd_app_info{sync_status="OutOfSync"} == 1
+        for: 15m
+        labels: {severity: warning}
+      - alert: MonitoringTargetDown
+        expr: up == 0
+        for: 5m
+        labels: {severity: warning}
+      - alert: MonitoringMemoryBudget
+        expr: sum(container_memory_working_set_bytes{namespace="monitoring",container!="",container!="POD"}) + 33554432 > 1073741824
+        for: 15m
+        labels: {severity: warning}
+      - alert: MonitoringOOM
+        expr: kube_pod_container_status_last_terminated_reason{namespace="monitoring",reason="OOMKilled"} == 1
+        for: 5m
+        labels: {severity: critical}
+      - alert: LogIngestionFailed
+        expr: increase(loki_write_dropped_entries_total[10m]) > 0 or increase(loki_discarded_samples_total[10m]) > 0
+        for: 5m
+        labels: {severity: warning}
+      - alert: DiscordDeliveryFailed
+        expr: increase(alertmanager_notifications_failed_total{integration="discord"}[10m]) > 0
+        for: 5m
+        labels: {severity: warning}
+      - alert: ScrapeSampleLimitExceeded
+        expr: increase(prometheus_target_scrapes_exceeded_sample_limit_total[10m]) > 0
+        for: 5m
+        labels: {severity: warning}

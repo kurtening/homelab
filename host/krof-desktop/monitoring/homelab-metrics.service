@@ -1,0 +1,27 @@
+[Unit]
+Description=Export homelab backup and mount metadata
+After=local-fs.target
+
+[Service]
+Type=oneshot
+DynamicUser=yes
+SupplementaryGroups=systemd-journal
+StateDirectory=homelab-monitoring
+StateDirectoryMode=0755
+UMask=0077
+ExecStart=/usr/local/sbin/homelab-metrics
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+MemoryMax=32M
+CPUQuota=10%
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=55

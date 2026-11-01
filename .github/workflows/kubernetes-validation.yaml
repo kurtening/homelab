@@ -39,3 +39,11 @@ jobs:
 
       - name: Check Immich backup dump pipeline
         run: python3 scripts/test-immich-backup.py
+
+      - name: Check monitoring collector and pinned configurations
+        run: |
+          python3 -m venv /tmp/monitoring-tests
+          /tmp/monitoring-tests/bin/pip install -r scripts/requirements-monitoring.txt
+          /tmp/monitoring-tests/bin/python scripts/test-monitoring-collector.py
+          /tmp/monitoring-tests/bin/python scripts/test-monitoring-manifests.py
+          /tmp/monitoring-tests/bin/python scripts/validate-monitoring.py

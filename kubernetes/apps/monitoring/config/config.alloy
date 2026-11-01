@@ -1,0 +1,80 @@
+logging {
+  level = "warn"
+}
+discovery.kubernetes "platform" {
+  role = "pod"
+  namespaces {
+    names = ["argocd", "kube-system", "tailscale", "monitoring"]
+  }
+}
+discovery.relabel "platform" {
+  targets = discovery.kubernetes.platform.targets
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    regex = "argocd|kube-system|tailscale|monitoring"
+    action = "keep"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    target_label = "namespace"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_name"]
+    target_label = "container"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_name"]
+    target_label = "pod"
+  }
+}
+loki.source.kubernetes "platform" {
+  targets = discovery.relabel.platform.output
+  forward_to = [loki.process.platform.receiver]
+}
+loki.process "platform" {
+  stage.label_keep {
+    values = ["namespace", "container", "pod"]
+  }
+  forward_to = [loki.process.scrub.receiver]
+}
+loki.source.journal "backups" {
+  path = "/var/log/journal"
+  matches = "_SYSTEMD_UNIT=immich-restic-backup.service _SYSTEMD_UNIT=jellyfin-restic-backup.service _SYSTEMD_UNIT=minecraft-restic-backup.service"
+  max_age = "1h"
+  relabel_rules = loki.relabel.backups.rules
+  forward_to = [loki.process.scrub.receiver]
+}
+loki.source.journal "volatile_backups" {
+  path = "/run/log/journal"
+  matches = "_SYSTEMD_UNIT=immich-restic-backup.service _SYSTEMD_UNIT=jellyfin-restic-backup.service _SYSTEMD_UNIT=minecraft-restic-backup.service"
+  max_age = "1h"
+  relabel_rules = loki.relabel.backups.rules
+  forward_to = [loki.process.scrub.receiver]
+}
+loki.relabel "backups" {
+  forward_to = []
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label = "unit"
+  }
+  rule {
+    target_label = "source"
+    replacement = "backup-journal"
+  }
+  rule {
+    action = "labelkeep"
+    regex = "unit|source"
+  }
+}
+loki.process "scrub" {
+  stage.drop {
+    expression = "(?i)(discord(?:app)?[.]com/api/webhooks/|authorization\\s*[:=]|bearer\\s|password\\s*[:=]|AGE[-]SECRET[-]KEY[-]|/library/|/media/|/etc/restic/)"
+    drop_counter_reason = "sensitive_line"
+  }
+  forward_to = [loki.write.local.receiver]
+}
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

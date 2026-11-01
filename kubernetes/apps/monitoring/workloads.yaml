@@ -1,0 +1,290 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: prometheus}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: prometheus}}
+  template:
+    metadata: {labels: {app: prometheus}}
+    spec:
+      serviceAccountName: prometheus
+      securityContext: {runAsNonRoot: true, runAsUser: 65534, fsGroup: 65534, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: prometheus
+          image: prometheus
+          args: [--config.file=/etc/prometheus/prometheus.yml, --storage.tsdb.path=/prometheus, --storage.tsdb.retention.time=3d, --storage.tsdb.retention.size=3GB]
+          env: [{name: GOMEMLIMIT, value: 400MiB}]
+          resources: {requests: {cpu: 100m, memory: 256Mi}, limits: {cpu: 500m, memory: 512Mi}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          ports: [{name: http, containerPort: 9090}]
+          startupProbe: {httpGet: {path: /-/ready, port: http}, periodSeconds: 5, failureThreshold: 60}
+          readinessProbe: {httpGet: {path: /-/ready, port: http}}
+          livenessProbe: {httpGet: {path: /-/healthy, port: http}}
+          volumeMounts:
+            - {name: config, mountPath: /etc/prometheus, readOnly: true}
+            - {name: data, mountPath: /prometheus}
+      volumes:
+        - name: config
+          configMap: {name: prometheus-config}
+        - name: data
+          persistentVolumeClaim: {claimName: prometheus}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: alertmanager}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: alertmanager}}
+  template:
+    metadata: {labels: {app: alertmanager}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 65534, fsGroup: 65534, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: alertmanager
+          image: alertmanager
+          args: [--config.file=/etc/alertmanager/config/alertmanager.yml, --storage.path=/alertmanager, '--cluster.listen-address=']
+          resources: {requests: {cpu: 10m, memory: 32Mi}, limits: {cpu: 100m, memory: 128Mi}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          ports: [{name: http, containerPort: 9093}]
+          startupProbe: {httpGet: {path: /-/ready, port: http}, periodSeconds: 5, failureThreshold: 30}
+          readinessProbe: {httpGet: {path: /-/ready, port: http}}
+          volumeMounts:
+            - {name: config, mountPath: /etc/alertmanager/config, readOnly: true}
+            - {name: credentials, mountPath: /etc/alertmanager/credentials, readOnly: true}
+            - {name: data, mountPath: /alertmanager}
+      volumes:
+        - name: config
+          configMap: {name: alertmanager-config}
+        - name: credentials
+          secret:
+            secretName: monitoring-credentials
+            items: [{key: DISCORD_WEBHOOK_URL, path: DISCORD_WEBHOOK_URL}]
+        - name: data
+          persistentVolumeClaim: {claimName: alertmanager}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: grafana}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: grafana}}
+  template:
+    metadata: {labels: {app: grafana}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 472, fsGroup: 472, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: grafana
+          image: grafana
+          env:
+            - {name: GF_SECURITY_ADMIN_USER, value: admin}
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom: {secretKeyRef: {name: monitoring-credentials, key: GRAFANA_ADMIN_PASSWORD}}
+            - name: GF_SERVER_ROOT_URL
+              valueFrom: {secretKeyRef: {name: monitoring-credentials, key: GRAFANA_ROOT_URL}}
+            - {name: GF_AUTH_ANONYMOUS_ENABLED, value: 'false'}
+            - {name: GF_USERS_ALLOW_SIGN_UP, value: 'false'}
+            - {name: GF_SECURITY_COOKIE_SECURE, value: 'true'}
+            - {name: GF_ANALYTICS_REPORTING_ENABLED, value: 'false'}
+            - {name: GF_ANALYTICS_CHECK_FOR_UPDATES, value: 'false'}
+            - {name: GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES, value: 'false'}
+            - {name: GF_PLUGINS_PREINSTALL_DISABLED, value: 'true'}
+            - {name: GF_PLUGINS_PUBLIC_KEY_RETRIEVAL_DISABLED, value: 'true'}
+            - {name: GF_LOG_LEVEL, value: warn}
+            - {name: GOMEMLIMIT, value: 300MiB}
+          resources: {requests: {cpu: 50m, memory: 128Mi}, limits: {cpu: 250m, memory: 384Mi}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          ports: [{name: http, containerPort: 3000}]
+          startupProbe: {httpGet: {path: /api/health, port: http}, periodSeconds: 5, failureThreshold: 60}
+          readinessProbe: {httpGet: {path: /api/health, port: http}}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/grafana}
+            - {name: tmp, mountPath: /tmp}
+            - {name: provisioning, mountPath: /etc/grafana/provisioning/datasources/datasources.yml, subPath: datasources.yml, readOnly: true}
+            - {name: provisioning, mountPath: /etc/grafana/provisioning/dashboards/dashboards.yml, subPath: dashboards.yml, readOnly: true}
+            - {name: dashboards, mountPath: /var/lib/grafana/dashboards, readOnly: true}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: grafana}
+        - {name: tmp, emptyDir: {sizeLimit: 32Mi}}
+        - name: provisioning
+          configMap: {name: grafana-provisioning}
+        - name: dashboards
+          configMap: {name: grafana-dashboards}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: loki}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: loki}}
+  template:
+    metadata: {labels: {app: loki}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: loki
+          image: loki
+          args: [-config.file=/etc/loki/loki.yml, -target=all]
+          env: [{name: GOMEMLIMIT, value: 300MiB}]
+          resources: {requests: {cpu: 50m, memory: 128Mi}, limits: {cpu: 250m, memory: 384Mi}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          ports: [{name: http, containerPort: 3100}]
+          startupProbe: {httpGet: {path: /ready, port: http}, periodSeconds: 5, failureThreshold: 60}
+          readinessProbe: {httpGet: {path: /ready, port: http}}
+          volumeMounts:
+            - {name: config, mountPath: /etc/loki, readOnly: true}
+            - {name: data, mountPath: /loki}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: config
+          configMap: {name: loki-config}
+        - name: data
+          persistentVolumeClaim: {claimName: loki}
+        - {name: tmp, emptyDir: {sizeLimit: 32Mi}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: alloy}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: alloy}}
+  template:
+    metadata: {labels: {app: alloy}}
+    spec:
+      serviceAccountName: alloy
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 473
+        fsGroup: 473
+        supplementalGroups: [101] # Verified systemd-journal GID on krof-desktop; recheck before activation.
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: alloy
+          image: alloy
+          args: [run, /etc/alloy/config.alloy, --storage.path=/var/lib/alloy, --server.http.listen-addr=0.0.0.0:12345, --disable-reporting]
+          env: [{name: GOMEMLIMIT, value: 200MiB}]
+          resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 200m, memory: 256Mi}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          ports: [{name: http, containerPort: 12345}]
+          startupProbe: {httpGet: {path: /-/ready, port: http}, periodSeconds: 5, failureThreshold: 60}
+          readinessProbe: {httpGet: {path: /-/ready, port: http}}
+          volumeMounts:
+            - {name: config, mountPath: /etc/alloy, readOnly: true}
+            - {name: data, mountPath: /var/lib/alloy}
+            - {name: journal, mountPath: /var/log/journal, readOnly: true}
+            - {name: volatile-journal, mountPath: /run/log/journal, readOnly: true}
+            - {name: machine-id, mountPath: /etc/machine-id, readOnly: true}
+      volumes:
+        - name: config
+          configMap: {name: alloy-config}
+        - name: data
+          persistentVolumeClaim: {claimName: alloy}
+        - name: journal
+          hostPath: {path: /var/log/journal, type: Directory}
+        - name: volatile-journal
+          hostPath: {path: /run/log/journal, type: Directory}
+        - name: machine-id
+          hostPath: {path: /etc/machine-id, type: File}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: kube-state-metrics}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: kube-state-metrics}}
+  template:
+    metadata: {labels: {app: kube-state-metrics}}
+    spec:
+      serviceAccountName: kube-state-metrics
+      securityContext: {runAsNonRoot: true, runAsUser: 65534, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: kube-state-metrics
+          image: kube-state-metrics
+          args: ['--resources=nodes,pods,persistentvolumes,persistentvolumeclaims,deployments,statefulsets,daemonsets,replicasets,jobs,cronjobs', '--metric-annotations-allowlist=jobs=[cronjob.kubernetes.io/instantiate]']
+          resources: {requests: {cpu: 10m, memory: 32Mi}, limits: {cpu: 100m, memory: 96Mi}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          ports: [{name: http, containerPort: 8080}]
+          readinessProbe: {tcpSocket: {port: http}}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: {name: node-exporter}
+spec:
+  selector: {matchLabels: {app: node-exporter}}
+  updateStrategy: {type: OnDelete}
+  template:
+    metadata: {labels: {app: node-exporter}}
+    spec:
+      nodeSelector: {kubernetes.io/hostname: krof-desktop}
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 65534, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: node-exporter
+          image: node-exporter
+          args:
+            - --path.procfs=/host/proc
+            - --path.sysfs=/host/sys
+            - --path.rootfs=/host/root
+            - --collector.disable-defaults
+            - --collector.cpu
+            - --collector.meminfo
+            - --collector.filesystem
+            - --collector.loadavg
+            - --collector.stat
+            - --collector.time
+            - --collector.textfile
+            - --collector.textfile.directory=/textfile
+            - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/(docker|kubelet|rancher/k3s))($|/)
+          resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {cpu: 100m, memory: 64Mi}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          ports: [{name: http, containerPort: 9100}]
+          readinessProbe: {tcpSocket: {port: http}}
+          volumeMounts:
+            - {name: proc, mountPath: /host/proc, readOnly: true}
+            - {name: sys, mountPath: /host/sys, readOnly: true}
+            - {name: root, mountPath: /host/root, readOnly: true, mountPropagation: HostToContainer}
+            - {name: textfile, mountPath: /textfile, readOnly: true}
+      volumes:
+        - name: proc
+          hostPath: {path: /proc, type: Directory}
+        - name: sys
+          hostPath: {path: /sys, type: Directory}
+        - name: root
+          hostPath: {path: /, type: Directory}
+        - name: textfile
+          hostPath: {path: /var/lib/homelab-monitoring/textfile, type: Directory}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: blackbox-exporter}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: blackbox-exporter}}
+  template:
+    metadata: {labels: {app: blackbox-exporter}}
+    spec:
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 65534, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: blackbox-exporter
+          image: blackbox-exporter
+          args: [--config.file=/etc/blackbox/blackbox.yml]
+          resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {cpu: 100m, memory: 64Mi}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          ports: [{name: http, containerPort: 9115}]
+          readinessProbe: {tcpSocket: {port: http}}
+          volumeMounts:
+            - {name: config, mountPath: /etc/blackbox, readOnly: true}
+      volumes:
+        - name: config
+          configMap: {name: blackbox-config}
