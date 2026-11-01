@@ -152,6 +152,29 @@ Publish the paired application-image change as a separate draft PR only after
 the live isolated rehearsal passes. Review intervening release notes and mobile
 client compatibility. The target v3.3.5 release includes security fixes.
 
+### Reviewed application-image change
+
+The upgrade PR changes server and machine learning together to the exact
+digest-pinned v3.3.5 images exercised by the successful isolated rehearsal.
+PostgreSQL, Valkey, GPU configuration, credentials, resource settings, and
+storage bindings remain unchanged. Review the two manifest image references
+against the retained target inventory before the maintenance window.
+
+The recovery-tooling PR is merged. Review the image change separately
+against `main`. Do not merge the image PR just because its schema checks pass:
+once automation is restored, Argo can start migrations immediately. The
+independent Restic recovery password, agreed write pause, verified final
+checkpoint, captured previous image digests and Argo policies, and compatible
+client versions are prerequisites. Do not reopen uploads until production
+acceptance and the controlled-upload backup check pass.
+
+The rehearsal proves fresh restoration of the selected checkpoint into the
+old version and migration of another fresh copy into the target version.
+It does not prove an in-place database downgrade, a production rollback, or
+restoration of a final maintenance-window snapshot not yet created. Rollback
+must recreate the old database/library state from that final checkpoint;
+never reuse the migrated database with the old images.
+
 Before production merge, coordinate a write pause with every uploading client,
 quiesce the server using an approved maintenance/GitOps sequence, run the
 installed backup service, and verify its new snapshot. Argo self-healing must
