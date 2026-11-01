@@ -1,0 +1,9 @@
+{
+  "uid":"homelab-applications","title":"Internal application probes","schemaVersion":39,"version":1,
+  "description":"Internal HTTP/TCP checks do not verify login, playback, external DNS or Tailscale ingress.",
+  "refresh":"1m","time":{"from":"now-6h","to":"now"},
+  "panels":[
+    {"id":1,"title":"Internal health (1=reachable)","type":"stat","gridPos":{"x":0,"y":0,"w":24,"h":8},"datasource":{"uid":"prometheus","type":"prometheus"},"targets":[{"expr":"probe_success","legendFormat":"{{application}}","refId":"A"}]},
+    {"id":2,"title":"Probe duration","type":"timeseries","gridPos":{"x":0,"y":8,"w":24,"h":8},"datasource":{"uid":"prometheus","type":"prometheus"},"fieldConfig":{"defaults":{"unit":"s"}},"targets":[{"expr":"probe_duration_seconds","legendFormat":"{{application}}","refId":"A"}]}
+  ]
+}

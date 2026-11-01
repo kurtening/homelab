@@ -1,0 +1,11 @@
+{
+  "uid": "homelab-host", "title": "Host and storage", "schemaVersion": 39, "version": 1,
+  "refresh": "1m", "time": {"from": "now-6h", "to": "now"},
+  "panels": [
+    {"id":1,"title":"CPU utilization (gaming spikes are not alerts)","type":"timeseries","gridPos":{"x":0,"y":0,"w":12,"h":8},"datasource":{"uid":"prometheus","type":"prometheus"},"targets":[{"expr":"1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m]))","refId":"A"}]},
+    {"id":2,"title":"Available memory","type":"timeseries","gridPos":{"x":12,"y":0,"w":12,"h":8},"datasource":{"uid":"prometheus","type":"prometheus"},"fieldConfig":{"defaults":{"unit":"bytes"}},"targets":[{"expr":"node_memory_MemAvailable_bytes","refId":"A"}]},
+    {"id":3,"title":"Filesystem space available","type":"timeseries","gridPos":{"x":0,"y":8,"w":12,"h":8},"datasource":{"uid":"prometheus","type":"prometheus"},"fieldConfig":{"defaults":{"unit":"bytes"}},"targets":[{"expr":"node_filesystem_avail_bytes{fstype=\"ext4\"}","legendFormat":"{{mountpoint}}","refId":"A"}]},
+    {"id":4,"title":"Filesystem inode fraction available","type":"timeseries","gridPos":{"x":12,"y":8,"w":12,"h":8},"datasource":{"uid":"prometheus","type":"prometheus"},"targets":[{"expr":"node_filesystem_files_free{fstype=\"ext4\"} / node_filesystem_files{fstype=\"ext4\"}","legendFormat":"{{mountpoint}}","refId":"A"}]},
+    {"id":5,"title":"Expected device/mount identities valid (1=yes)","type":"stat","gridPos":{"x":0,"y":16,"w":24,"h":6},"datasource":{"uid":"prometheus","type":"prometheus"},"targets":[{"expr":"homelab_storage_mount_valid","legendFormat":"{{role}}","refId":"A"}]}
+  ]
+}

@@ -1,0 +1,103 @@
+rule_files: [/etc/prometheus/alerts.yml]
+evaluation_interval: 1m
+tests:
+  - name: stale backup timing
+    interval: 1m
+    input_series:
+      - {series: 'homelab_backup_last_success_timestamp_seconds{application="immich"}', values: '1+0x1620'}
+      - {series: 'homelab_backup_success_known{application="immich"}', values: '1+0x1620'}
+      - {series: 'homelab_backup_service_running{application="immich"}', values: '0+0x1620'}
+      - {series: node_boot_time_seconds, values: '0+0x1620'}
+    alert_rule_test:
+      - {eval_time: 26h14m, alertname: BackupStale, exp_alerts: []}
+      - eval_time: 26h17m
+        alertname: BackupStale
+        exp_alerts:
+          - {exp_labels: {application: immich, severity: warning}}
+  - name: running backup suppresses stale alert
+    interval: 1m
+    input_series:
+      - {series: 'homelab_backup_last_success_timestamp_seconds{application="immich"}', values: '1+0x1620'}
+      - {series: 'homelab_backup_success_known{application="immich"}', values: '1+0x1620'}
+      - {series: 'homelab_backup_service_running{application="immich"}', values: '1+0x1620'}
+      - {series: node_boot_time_seconds, values: '0+0x1620'}
+    alert_rule_test:
+      - {eval_time: 27h, alertname: BackupStale, exp_alerts: []}
+  - name: boot grace then unknown history
+    interval: 1m
+    input_series:
+      - {series: 'homelab_backup_success_known{application="jellyfin"}', values: '0+0x90'}
+      - {series: node_boot_time_seconds, values: '0+0x90'}
+    alert_rule_test:
+      - {eval_time: 30m, alertname: BackupMetadataUnknown, exp_alerts: []}
+      - eval_time: 66m
+        alertname: BackupMetadataUnknown
+        exp_alerts: [{exp_labels: {application: jellyfin, severity: warning}}]
+  - name: failure timing and recovery
+    interval: 1m
+    input_series:
+      - {series: 'homelab_backup_last_failure_timestamp_seconds{application="minecraft"}', values: '20+0x10'}
+      - {series: 'homelab_backup_last_success_timestamp_seconds{application="minecraft"}', values: '10+0x6 30+0x3'}
+    alert_rule_test:
+      - {eval_time: 4m, alertname: BackupFailed, exp_alerts: []}
+      - eval_time: 5m
+        alertname: BackupFailed
+        exp_alerts: [{exp_labels: {application: minecraft, severity: critical}}]
+      - {eval_time: 8m, alertname: BackupFailed, exp_alerts: []}
+  - name: missing collector and wrong mount
+    interval: 1m
+    input_series:
+      - {series: 'homelab_storage_mount_valid{role="backup"}', values: '0+0x10'}
+    alert_rule_test:
+      - {eval_time: 4m, alertname: MetadataCollectorMissing, exp_alerts: []}
+      - eval_time: 5m
+        alertname: MetadataCollectorMissing
+        exp_alerts: [{exp_labels: {severity: critical}}]
+      - eval_time: 5m
+        alertname: StorageMountWrong
+        exp_alerts: [{exp_labels: {role: backup, severity: critical}}]
+  - name: stale collector timestamp
+    interval: 1m
+    input_series:
+      - {series: homelab_collector_last_success_timestamp_seconds, values: '0+0x15'}
+    alert_rule_test:
+      - {eval_time: 5m, alertname: MetadataCollectorMissing, exp_alerts: []}
+      - eval_time: 9m
+        alertname: MetadataCollectorMissing
+        exp_alerts: [{exp_labels: {severity: critical}}]
+  - name: long running backup
+    interval: 1m
+    input_series:
+      - {series: 'homelab_backup_last_run_timestamp_seconds{application="immich"}', values: '1+0x150'}
+      - {series: 'homelab_backup_service_running{application="immich"}', values: '1+0x150'}
+    alert_rule_test:
+      - {eval_time: 124m, alertname: BackupRunningLong, exp_alerts: []}
+      - eval_time: 127m
+        alertname: BackupRunningLong
+        exp_alerts: [{exp_labels: {application: immich, severity: warning}}]
+  - name: no false stale backup with unknown history
+    interval: 1m
+    input_series:
+      - {series: 'homelab_backup_last_success_timestamp_seconds{application="immich"}', values: '0+0x1620'}
+      - {series: 'homelab_backup_success_known{application="immich"}', values: '0+0x1620'}
+      - {series: 'homelab_backup_service_running{application="immich"}', values: '0+0x1620'}
+      - {series: node_boot_time_seconds, values: '0+0x1620'}
+    alert_rule_test:
+      - {eval_time: 27h, alertname: BackupStale, exp_alerts: []}
+  - name: manual failed CronJob is not a scheduled-chain failure
+    interval: 1m
+    input_series:
+      - {series: 'kube_job_failed{namespace="jellyfin",job_name="fixture",condition="true"}', values: '1+0x10'}
+      - {series: 'kube_job_owner{namespace="jellyfin",job_name="fixture",owner_kind="CronJob",owner_name="jellyfin-backup"}', values: '1+0x10'}
+      - {series: 'kube_job_annotations{namespace="jellyfin",job_name="fixture",annotation_cronjob_kubernetes_io_instantiate="manual"}', values: '1+0x10'}
+    alert_rule_test:
+      - {eval_time: 6m, alertname: BackupCronJobFailed, exp_alerts: []}
+  - name: true failed CronJob
+    interval: 1m
+    input_series:
+      - {series: 'kube_job_failed{namespace="jellyfin",job_name="fixture",condition="true"}', values: '1+0x10'}
+      - {series: 'kube_job_owner{namespace="jellyfin",job_name="fixture",owner_kind="CronJob",owner_name="jellyfin-backup"}', values: '1+0x10'}
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: BackupCronJobFailed
+        exp_alerts: [{exp_labels: {namespace: jellyfin, job_name: fixture, condition: 'true', severity: critical, application: jellyfin}}]

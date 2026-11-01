@@ -1,0 +1,65 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - storage.yaml
+  - rbac.yaml
+  - workloads.yaml
+  - services.yaml
+  - ingress.yaml
+  - log-rbac
+patches:
+  - target:
+      kind: Deployment|DaemonSet|Service|PersistentVolumeClaim|ServiceAccount|ResourceQuota|NetworkPolicy|Ingress|ConfigMap
+    patch: |-
+      - op: add
+        path: /metadata/namespace
+        value: monitoring
+configMapGenerator:
+  - name: prometheus-config
+    files: [config/prometheus.yml, config/alerts.yml]
+  - name: alertmanager-config
+    files: [config/alertmanager.yml]
+  - name: loki-config
+    files: [config/loki.yml]
+  - name: alloy-config
+    files: [config/config.alloy]
+  - name: blackbox-config
+    files: [config/blackbox.yml]
+  - name: grafana-provisioning
+    files: [config/datasources.yml, config/dashboards.yml]
+  - name: grafana-dashboards
+    files: [dashboards/host.json, dashboards/cluster.json, dashboards/backups.json, dashboards/applications.json, dashboards/logs.json]
+images:
+  - name: prometheus
+    newName: quay.io/prometheus/prometheus
+    newTag: v3.15.1
+    digest: sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2
+  - name: alertmanager
+    newName: quay.io/prometheus/alertmanager
+    newTag: v0.34.2
+    digest: sha256:39d8bb3966c694a124428a3a88fbcffd40bd069129ecd47c059f8a3f17c55f3b
+  - name: grafana
+    newName: docker.io/grafana/grafana
+    newTag: 13.3.0
+    digest: sha256:488984b716c0862639f91a698adbe2862677a5a07bad42da5f03f3030883b205
+  - name: loki
+    newName: docker.io/grafana/loki
+    newTag: 3.7.9
+    digest: sha256:0db216b630ae1f348a1584c67f3cead8b4c1fc839169a39501db664744158e28
+  - name: alloy
+    newName: docker.io/grafana/alloy
+    newTag: v1.21.3
+    digest: sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4
+  - name: node-exporter
+    newName: quay.io/prometheus/node-exporter
+    newTag: v1.12.1
+    digest: sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
+  - name: kube-state-metrics
+    newName: registry.k8s.io/kube-state-metrics/kube-state-metrics
+    newTag: v2.20.0
+    digest: sha256:42cfe3723a5f058171c627537fb57a3ea0f26e4380fa18555a95cb1a1b4cfc5b
+  - name: blackbox-exporter
+    newName: quay.io/prometheus/blackbox-exporter
+    newTag: v0.29.1
+    digest: sha256:ea1c7aa3ef3f307cd03e85f34abb604478ccb90b567fc690da0cd9776da76b13

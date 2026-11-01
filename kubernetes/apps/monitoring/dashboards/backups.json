@@ -1,0 +1,11 @@
+{
+  "uid":"homelab-backups","title":"Backup service metadata","schemaVersion":39,"version":1,
+  "description":"Unit success is not snapshot inclusion, scheduled-cycle acceptance, or a restore test. Unknown history remains unknown.",
+  "refresh":"1m","time":{"from":"now-24h","to":"now"},
+  "panels":[
+    {"id":1,"title":"Seconds since observed success (check known-history panel)","type":"stat","gridPos":{"x":0,"y":0,"w":12,"h":8},"datasource":{"uid":"prometheus","type":"prometheus"},"fieldConfig":{"defaults":{"unit":"s"}},"targets":[{"expr":"(time() - homelab_backup_last_success_timestamp_seconds) and (homelab_backup_success_known == 1)","legendFormat":"{{application}}","refId":"A"}]},
+    {"id":2,"title":"Success history known (1=yes)","type":"stat","gridPos":{"x":12,"y":0,"w":12,"h":8},"datasource":{"uid":"prometheus","type":"prometheus"},"targets":[{"expr":"homelab_backup_success_known","legendFormat":"{{application}}","refId":"A"}]},
+    {"id":3,"title":"Backup running (1=yes)","type":"timeseries","gridPos":{"x":0,"y":8,"w":12,"h":8},"datasource":{"uid":"prometheus","type":"prometheus"},"targets":[{"expr":"homelab_backup_service_running","legendFormat":"{{application}}","refId":"A"}]},
+    {"id":4,"title":"Collector age / backup failure","type":"stat","gridPos":{"x":12,"y":8,"w":12,"h":8},"datasource":{"uid":"prometheus","type":"prometheus"},"targets":[{"expr":"time() - homelab_collector_last_success_timestamp_seconds","legendFormat":"Collector age seconds","refId":"A"},{"expr":"homelab_backup_last_failure_timestamp_seconds > bool homelab_backup_last_success_timestamp_seconds","legendFormat":"{{application}} failed (1=yes)","refId":"B"}]}
+  ]
+}

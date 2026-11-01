@@ -1,0 +1,11 @@
+[Unit]
+Description=Collect homelab metadata every minute while running
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=5s
+Unit=homelab-metrics.service
+
+[Install]
+WantedBy=timers.target

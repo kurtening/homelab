@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-secrets
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: '-1'}
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/kurtening/homelab.git
+    targetRevision: main
+    path: kubernetes/secrets/monitoring
+  destination: {server: 'https://kubernetes.default.svc', namespace: monitoring}
+  syncPolicy:
+    automated: {enabled: true, prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata: {name: monitoring, namespace: argocd}
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/kurtening/homelab.git
+    targetRevision: main
+    path: kubernetes/apps/monitoring
+  destination: {server: 'https://kubernetes.default.svc', namespace: monitoring}
+  syncPolicy:
+    automated: {enabled: true, prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]

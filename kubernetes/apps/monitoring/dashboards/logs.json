@@ -1,0 +1,9 @@
+{
+  "uid":"homelab-logs","title":"Platform and backup logs","schemaVersion":39,"version":1,
+  "description":"Private 24-hour logs. Family-application pod logs are deliberately excluded.",
+  "refresh":"1m","time":{"from":"now-1h","to":"now"},
+  "panels":[
+    {"id":1,"title":"Platform pods","type":"logs","gridPos":{"x":0,"y":0,"w":24,"h":12},"datasource":{"uid":"loki","type":"loki"},"targets":[{"expr":"{namespace=~\"argocd|kube-system|tailscale|monitoring\"}","refId":"A"}]},
+    {"id":2,"title":"Backup service journals","type":"logs","gridPos":{"x":0,"y":12,"w":24,"h":12},"datasource":{"uid":"loki","type":"loki"},"targets":[{"expr":"{source=\"backup-journal\"}","refId":"A"}]}
+  ]
+}

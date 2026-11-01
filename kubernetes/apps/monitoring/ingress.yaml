@@ -1,0 +1,29 @@
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata: {name: monitoring}
+spec:
+  statefulSet:
+    pod:
+      labels: {homelab.kurtening.dev/monitoring-proxy: 'true'}
+      tailscaleContainer:
+        resources:
+          requests: {cpu: 10m, memory: 32Mi}
+          limits: {cpu: 100m, memory: 128Mi}
+      tailscaleInitContainer:
+        resources:
+          requests: {cpu: 10m, memory: 16Mi}
+          limits: {cpu: 100m, memory: 32Mi}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  annotations: {tailscale.com/proxy-class: monitoring}
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: grafana
+      port: {name: http}
+  tls:
+    - hosts: [grafana]

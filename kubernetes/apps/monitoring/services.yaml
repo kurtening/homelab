@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata: {name: prometheus}
+spec: {selector: {app: prometheus}, ports: [{name: http, port: 9090, targetPort: http}]}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: alertmanager}
+spec: {selector: {app: alertmanager}, ports: [{name: http, port: 9093, targetPort: http}]}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: grafana}
+spec: {selector: {app: grafana}, ports: [{name: http, port: 3000, targetPort: http}]}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: loki}
+spec: {selector: {app: loki}, ports: [{name: http, port: 3100, targetPort: http}]}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: alloy}
+spec: {selector: {app: alloy}, ports: [{name: http, port: 12345, targetPort: http}]}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: node-exporter}
+spec: {selector: {app: node-exporter}, ports: [{name: http, port: 9100, targetPort: http}]}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: kube-state-metrics}
+spec: {selector: {app: kube-state-metrics}, ports: [{name: http, port: 8080, targetPort: http}]}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: blackbox-exporter}
+spec: {selector: {app: blackbox-exporter}, ports: [{name: http, port: 9115, targetPort: http}]}
