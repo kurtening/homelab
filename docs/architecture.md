@@ -215,8 +215,8 @@ initializes an isolated schema and uses a bounded 8 GiB container; the initial
 2 GiB health-only test was insufficient and is not accepted evidence. Host
 backup installation and manual execution passed, and the timer is enabled.
 The independent age-identity vault copy passed recipient matching and silent
-decryption verification. The first scheduled-chain check remains pending;
-see `docs/jellyfin.md`. Neither the drill nor the
+decryption verification. The November 1 scheduled chain passed archive integrity,
+snapshot inclusion, and timer/service checks; see `docs/jellyfin.md`. Neither the drill nor the
 local Restic repository recovers excluded media after total machine loss.
 
 ## GitHub repository infrastructure

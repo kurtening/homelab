@@ -21,7 +21,7 @@ ingress, and OpenTofu/Terragrunt records the repository's GitHub governance.
 | Applications | Immich, Minecraft, Jellyfin, and `whoami` | Minecraft and Jellyfin run as singletons; Compose Jellyfin remains stopped for rollback |
 | Private ingress | Tailscale Kubernetes Operator | OAuth Secret is SOPS-encrypted in Git; tailnet policy remains external |
 | Persistent storage | Static local Immich, Minecraft, and Jellyfin PVs | Retained and bound to `krof-desktop` |
-| Backups | Application-consistent archives and Restic snapshots | Jellyfin restore/content checks passed; scheduled-chain acceptance pending; local only |
+| Backups | Application-consistent archives and Restic snapshots | Jellyfin restore/content and first scheduled-chain checks passed; local only |
 | Repository policy | OpenTofu/Terragrunt | Planned and applied manually with remote state |
 
 Only Argo-managed Kubernetes resources change automatically after a merge.
@@ -69,9 +69,9 @@ before allowing the root Argo CD Application to reconcile dependent workloads.
   copy.
 - No cold-restore drill has proven recovery of PostgreSQL, media, credentials,
   and application availability.
-- Jellyfin's isolated application restore/content checks and independent
-  age-identity recovery verification passed. The first scheduled backup chain
-  remains pending. See the Jellyfin runbook for the current evidence scope.
+- Jellyfin's isolated application restore/content checks, independent
+  age-identity recovery verification, and first scheduled backup chain passed.
+  See the Jellyfin runbook for the current evidence scope and retention gates.
 
 Retained PV/PVC policies and `Prune=false,Delete=false` protections reduce
 accidental deletion risk, but they are not backups.

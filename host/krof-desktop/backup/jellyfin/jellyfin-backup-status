@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import zipfile
@@ -34,6 +35,18 @@ def command(args, env=None):
     if result.returncode:
         raise RuntimeError('Read-only evidence command failed; verify host access and credentials')
     return result.stdout
+
+
+def monotonic_usec(unit, interface, property_name):
+    # systemctl formats Timer usec values as durations on this host. D-Bus
+    # returns the underlying uint64; do not parse human-readable durations.
+    object_name = unit.replace('-', '_2d').replace('.', '_2e')
+    value = command(['busctl', 'get-property', 'org.freedesktop.systemd1',
+                     '/org/freedesktop/systemd1/unit/' + object_name,
+                     'org.freedesktop.systemd1.' + interface, property_name]).strip()
+    if not re.fullmatch(r't [0-9]+', value):
+        raise RuntimeError('Unexpected raw systemd monotonic timestamp format')
+    return int(value.split()[1])
 
 
 def main():
@@ -75,12 +88,13 @@ def main():
     if not found:
         raise RuntimeError('Subsequent Restic snapshots do not contain the correlated archive')
     timer = dict(line.split('=', 1) for line in command(['systemctl', 'show', 'jellyfin-restic-backup.timer',
-                 '-p', 'ActiveState', '-p', 'UnitFileState', '-p', 'LastTriggerUSecMonotonic']).splitlines() if '=' in line)
+                 '-p', 'ActiveState', '-p', 'UnitFileState']).splitlines() if '=' in line)
     service = dict(line.split('=', 1) for line in command(['systemctl', 'show', 'jellyfin-restic-backup.service',
-                   '-p', 'Result', '-p', 'ExecMainStatus', '-p', 'ExecMainStartTimestampMonotonic']).splitlines() if '=' in line)
-    trigger = int(timer.get('LastTriggerUSecMonotonic', '0'))
+                   '-p', 'Result', '-p', 'ExecMainStatus']).splitlines() if '=' in line)
+    trigger = monotonic_usec('jellyfin-restic-backup.timer', 'Timer', 'LastTriggerUSecMonotonic')
+    service_start = monotonic_usec('jellyfin-restic-backup.service', 'Service', 'ExecMainStartTimestampMonotonic')
     if (timer.get('ActiveState') != 'active' or timer.get('UnitFileState') != 'enabled' or trigger <= 0
-            or int(service.get('ExecMainStartTimestampMonotonic', '0')) < trigger
+            or service_start < trigger
             or service.get('Result') != 'success' or service.get('ExecMainStatus') != '0'):
         print('PENDING: archive and snapshot correlate; timer/service completion still needs confirmation')
         return 2
@@ -92,6 +106,10 @@ def main():
 if __name__ == '__main__':
     try:
         sys.exit(main())
-    except (RuntimeError, OSError, ValueError, KeyError, zipfile.BadZipFile):
+    except RuntimeError as error:
+        # These messages are fixed diagnostics, never command stderr or data.
+        print('FAIL: ' + str(error), file=sys.stderr)
+        sys.exit(1)
+    except (OSError, ValueError, KeyError, zipfile.BadZipFile):
         print('FAIL: scheduled-chain evidence could not be verified; inspect locally without exposing credentials', file=sys.stderr)
         sys.exit(1)
