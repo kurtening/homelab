@@ -101,3 +101,25 @@ tests:
       - eval_time: 5m
         alertname: BackupCronJobFailed
         exp_alerts: [{exp_labels: {namespace: jellyfin, job_name: fixture, condition: 'true', severity: critical, application: jellyfin}}]
+  - name: budget includes only the dedicated cross-namespace proxy
+    interval: 1m
+    input_series:
+      - {series: 'container_memory_working_set_bytes{namespace="monitoring",pod="fixture",container="prometheus"}', values: '1000000000+0x20'}
+      - {series: 'container_memory_working_set_bytes{namespace="tailscale",pod="ts-grafana-fixture-0",container="tailscale"}', values: '100000000+0x20'}
+      - {series: 'container_memory_working_set_bytes{namespace="tailscale",pod="ts-other-fixture-0",container="tailscale"}', values: '900000000+0x20'}
+    promql_expr_test:
+      - expr: homelab:monitoring_working_set_bytes
+        eval_time: 1m
+        exp_samples: [{labels: homelab:monitoring_working_set_bytes, value: 1133554432}]
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: MonitoringMemoryBudget
+        exp_alerts: [{exp_labels: {severity: warning}}]
+  - name: proxy OOM is not hidden by its namespace
+    interval: 1m
+    input_series:
+      - {series: 'kube_pod_container_status_last_terminated_reason{namespace="tailscale",pod="ts-grafana-fixture-0",reason="OOMKilled"}', values: '1+0x10'}
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: MonitoringOOM
+        exp_alerts: [{exp_labels: {namespace: tailscale, pod: ts-grafana-fixture-0, reason: OOMKilled, severity: critical}}]

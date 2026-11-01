@@ -68,6 +68,10 @@ loki.relabel "backups" {
 }
 loki.process "scrub" {
   stage.drop {
+    older_than = "24h"
+    drop_counter_reason = "outside_retention"
+  }
+  stage.drop {
     expression = "(?i)(discord(?:app)?[.]com/api/webhooks/|authorization\\s*[:=]|bearer\\s|password\\s*[:=]|AGE[-]SECRET[-]KEY[-]|/library/|/media/|/etc/restic/)"
     drop_counter_reason = "sensitive_line"
   }

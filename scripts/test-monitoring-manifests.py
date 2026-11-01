@@ -29,6 +29,8 @@ class Tests(unittest.TestCase):
         proxy=next(d for d in DOCS if d['kind']=='ProxyClass')['spec']['statefulSet']['pod']['tailscaleContainer']['resources']['limits']
         self.assertEqual(memory+int(proxy['memory'][:-2])+32,2048)
         self.assertLessEqual(cpu+int(proxy['cpu'][:-1])+100,2000)
+        quota=next(d for d in DOCS if d['kind']=='ResourceQuota')
+        self.assertEqual(quota['spec']['hard']['limits.memory'],'1888Mi')
 
     def test_reviewed_activation_connects_both_applications(self):
         rendered=subprocess.check_output(['kustomize','build',str(ROOT/'kubernetes/clusters/krof-desktop')],text=True)
@@ -44,6 +46,19 @@ class Tests(unittest.TestCase):
         self.assertEqual(len(ing),1);self.assertEqual(ing[0]['spec']['tls'][0]['hosts'],['grafana'])
         for d in DOCS:
             if d['kind']=='Service':self.assertEqual(d['spec'].get('type','ClusterIP'),'ClusterIP')
+
+    def test_cross_namespace_proxy_is_allowed_only_to_grafana(self):
+        policies=[d for d in DOCS if d['kind']=='NetworkPolicy']
+        self.assertEqual(len(policies),2)
+        default=next(d for d in policies if d['metadata']['name']=='monitoring-private')
+        self.assertEqual(default['spec']['podSelector'],{})
+        self.assertEqual(default['spec']['ingress'],[{'from':[{'podSelector':{}}]}])
+        grafana=next(d for d in policies if d['metadata']['name']=='grafana-tailscale')['spec']
+        self.assertEqual(grafana['podSelector'],{'matchLabels':{'app':'grafana'}})
+        self.assertEqual(grafana['ingress'],[{'from':[{
+            'namespaceSelector':{'matchLabels':{'kubernetes.io/metadata.name':'tailscale'}},
+            'podSelector':{'matchLabels':{'homelab.kurtening.dev/monitoring-proxy':'true'}}}],
+            'ports':[{'protocol':'TCP','port':3000}]}])
 
     def test_log_roles_remain_namespace_scoped(self):
         roles=[d for d in DOCS if d['kind']=='Role']
@@ -64,6 +79,7 @@ class Tests(unittest.TestCase):
         for line in ['https://discord.com/api/webhooks/123/fixture','Authorization: fixture','Bearer fixture','password=fixture','/data/library/upload/fixture.jpg']:
             self.assertRegex(line,expression)
         self.assertIsNone(re.search(expression,'Backup completed successfully'))
+        self.assertIn('older_than = "24h"',text)
 
     def test_pvc_retention_and_no_production_storage(self):
         pvcs=[d for d in DOCS if d['kind']=='PersistentVolumeClaim']

@@ -1,6 +1,8 @@
 groups:
   - name: homelab
     rules:
+      - record: homelab:monitoring_working_set_bytes
+        expr: sum(container_memory_working_set_bytes{namespace="monitoring",container!="",container!="POD"}) + (sum(container_memory_working_set_bytes{namespace="tailscale",pod=~"ts-grafana-.+",container!="",container!="POD"}) or vector(0)) + 33554432
       - alert: BackupFailed
         expr: (homelab_backup_last_failure_timestamp_seconds > homelab_backup_last_success_timestamp_seconds) or (homelab_backup_service_failed == 1)
         for: 5m
@@ -66,13 +68,17 @@ groups:
         for: 5m
         labels: {severity: warning}
       - alert: MonitoringMemoryBudget
-        expr: sum(container_memory_working_set_bytes{namespace="monitoring",container!="",container!="POD"}) + 33554432 > 1073741824
+        expr: homelab:monitoring_working_set_bytes > 1073741824
         for: 15m
         labels: {severity: warning}
       - alert: MonitoringOOM
-        expr: kube_pod_container_status_last_terminated_reason{namespace="monitoring",reason="OOMKilled"} == 1
+        expr: (kube_pod_container_status_last_terminated_reason{namespace="monitoring",reason="OOMKilled"} == 1) or (kube_pod_container_status_last_terminated_reason{namespace="tailscale",pod=~"ts-grafana-.+",reason="OOMKilled"} == 1)
         for: 5m
         labels: {severity: critical}
+      - alert: MonitoringProxyMetricsMissing
+        expr: absent(container_memory_working_set_bytes{namespace="tailscale",pod=~"ts-grafana-.+",container="tailscale"})
+        for: 5m
+        labels: {severity: warning}
       - alert: LogIngestionFailed
         expr: increase(loki_write_dropped_entries_total[10m]) > 0 or increase(loki_discarded_samples_total[10m]) > 0
         for: 5m
