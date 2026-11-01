@@ -11,8 +11,8 @@ historical cutover checklist below also applies to any future reactivation.
 Retained storage, the SOPS-managed API key, Service, and Tailscale Ingress are
 managed by Argo CD. Host backup assets are installed and the 04:30 Manila timer
 is enabled; merging Git changes does not update installed host files. Manual
-archive creation and Restic snapshots/checks passed. Scheduled-chain evidence
-is a separate acceptance check, described below.
+archive creation and Restic snapshots/checks passed, followed by the first
+scheduled-chain acceptance check described below.
 
 ## Deployment contract
 
@@ -268,14 +268,20 @@ It requires a successful CronJob-owned Job with the scheduled-time annotation
 and rejects `cronjob.kubernetes.io/instantiate: manual` (manual cutover Jobs
 also have CronJob owner references). It correlates the archive's creation time,
 ZIP integrity, and size/mtime in a later Restic snapshot, then checks the
-enabled timer's trigger and successful service result. Exit 0 is verified,
+enabled timer's trigger and successful service result. The helper uses systemd's
+`busctl` raw monotonic timestamps, because `systemctl show` can format timer
+timestamps as human-readable durations rather than numeric microseconds.
+Exit 0 is verified,
 2 is pending, and 1 is a failed/unverifiable check. The snapshot listing proves
 inclusion; the separately tested restore establishes recoverability.
 
-At this update only the manual chain is verified; do not label it scheduled
-evidence. If the desktop is off, record the check as pending and verify the
-next completed cycle. Keep a private record of seven successful scheduled
-cycles before considering retirement of stopped Compose.
+On November 1, 2026, the first scheduled chain passed: the 04:00 Manila
+CronJob-owned Job completed, its ZIP passed integrity checks, the subsequent
+04:30 Restic snapshot included that archive, and timer/service evidence
+confirmed successful execution. This is one verified scheduled cycle, not
+seven. If the desktop is off during a future check, record it as pending and
+verify the next completed cycle. Keep a private record of seven successful
+scheduled cycles before considering retirement of stopped Compose.
 
 Inventory the exact stopped test containers and plaintext restore directories
 before cleanup. Retain them until content verification/evidence is recorded,

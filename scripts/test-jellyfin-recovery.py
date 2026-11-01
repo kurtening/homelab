@@ -11,6 +11,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import uuid
 import zipfile
 
@@ -185,6 +186,16 @@ class RecoveryTests(unittest.TestCase):
         self.assertTrue(status.archive_matches(entry, self.archive))
         entry['size'] += 1
         self.assertFalse(status.archive_matches(entry, self.archive))
+
+    def test_raw_systemd_timestamps_avoid_duration_formatting(self):
+        with patch.object(status, 'command', return_value='t 726402767143\n') as call:
+            value = status.monotonic_usec('jellyfin-restic-backup.timer', 'Timer', 'LastTriggerUSecMonotonic')
+            self.assertEqual(value, 726402767143)
+            self.assertIn('busctl', call.call_args[0][0])
+            self.assertIn('/org/freedesktop/systemd1/unit/jellyfin_2drestic_2dbackup_2etimer', call.call_args[0][0])
+        with patch.object(status, 'command', return_value='1w 1d 9h 46min 42.767143s'):
+            with self.assertRaises(RuntimeError):
+                status.monotonic_usec('jellyfin-restic-backup.timer', 'Timer', 'LastTriggerUSecMonotonic')
 
 
 if __name__ == '__main__':
