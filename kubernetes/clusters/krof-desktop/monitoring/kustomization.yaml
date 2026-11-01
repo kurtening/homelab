@@ -1,4 +1,4 @@
-# STAGED: deliberately not referenced by ../kustomization.yaml.
+# Connected by the separately reviewed activation change in ../kustomization.yaml.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources: [applications.yaml]

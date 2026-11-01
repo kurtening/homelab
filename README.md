@@ -98,7 +98,7 @@ the formatting and validation commands mirrored from the IaC workflow.
 
 ## Project documentation
 
-- [Monitoring](docs/monitoring.md) describes the disconnected staging stack,
+- [Monitoring](docs/monitoring.md) describes the separately reviewed activation,
   private metrics/logs, Discord credential setup, budgets and activation gates.
 - [Architecture](docs/architecture.md) explains ownership, reconciliation,
   networking, storage, backups, and trust boundaries.

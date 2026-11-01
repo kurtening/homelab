@@ -1,13 +1,25 @@
 # Monitoring, logs and Discord alerts
 
-## Staged, not running
+## Activation declared; live acceptance requires evidence
 
-The staging PR adds standalone monitoring manifests and encrypted credentials,
-but `kubernetes/clusters/krof-desktop/kustomization.yaml` deliberately does NOT
-reference its `monitoring/` child directory. Merging staging therefore cannot
-activate either Application. Do not apply those Applications manually to skip
-the separate activation review. No existing application, backup timer, storage
-binding or Tailscale operator is changed.
+PR #39 staged standalone manifests and encrypted credentials without connecting
+the Applications. This separate activation change connects the `monitoring/`
+child directory to the cluster root. Merging it can immediately reconcile both
+Applications and start the stack: it is not another inert staging merge. Leave
+the activation PR draft until the protected host preflight below passes and
+the operator reviews the resource/storage/notification impact. No existing
+application, backup timer, storage binding or Tailscale operator is changed.
+
+The operator completed protected Discord entry and confirmed Grafana-password
+vault custody. Silent credential validation passed. The new host collector was
+installed on November 1, 2026; its unit reported success, DynamicUser, active/
+enabled timer and MemoryMax=32 MiB. Direct kubelet TLS validated against the
+projected Kubernetes CA during read-only preflight. The operator also reported
+PASS from the protected exporter-UID bind-view/freshness/mount check and the
+Alloy-UID/group journal-header check, without changing private-parent modes.
+Actual service-account authorization, live ingestion, Discord delivery and
+runtime-budget acceptance remain separate checks; no live stack acceptance is
+implied by this document.
 
 Prometheus, Alertmanager, Grafana, monolithic Loki, Alloy, Node Exporter,
 kube-state-metrics and Blackbox Exporter are digest-pinned in the monitoring
@@ -142,16 +154,26 @@ not force overwrite. Stopping/disabling only this new timer is the rollback.
 
 StateDirectory is 0755 so Node Exporter can read the bind-mounted textfile
 directory; state.json stays 0600 and metrics 0644. No secrets are stored there.
+DynamicUser places StateDirectory under a private parent; an unprivileged
+host-shell traversal can correctly fail even though a root-created bind mount
+exposes the numeric directory to the exporter. Do not chmod/chown
+`/var/lib/private` or weaken systemd isolation to work around that observation.
+Run `sudo python3 /protected/staging/check-monitoring-host` before merging
+activation. It checks the installed hash, service/timer, directory/file modes,
+fresh metrics and exact mount flags through a directory-FD view after dropping
+to exporter UID 65534. It also tests a journal header as Alloy UID 473/group 101
+without reading/displaying journal records. A PASS is a host preflight, not
+proof of Kubernetes token authorization, live log ingestion or Discord delivery.
 The state directory must exist before Node Exporter schedules; hostPath uses
 Directory, never DirectoryOrCreate. A failed collection retains the previous
 metrics, whose age triggers an alert instead of reporting a false fresh result.
 
 ## Activation and acceptance
 
-The separate activation PR's only desired-state change connects the `monitoring`
-child directory to the cluster root resources. Update the staging-specific
-disconnection test and documentation deliberately in that same reviewed PR;
-do not weaken the invariant in staging. Require credential/vault readiness and a healthy host
+The activation PR's only desired-state change connects the `monitoring` child
+directory to the cluster root resources. Its topology test requires exactly
+one of each reviewed child Application; staging's disconnection test was
+deliberately transitioned in this separate change. Require credential/vault readiness and a healthy host
 collector first. The secrets child has a creation sync wave, but that does not
 prove its Secret is reconciled before workloads start. Verify the Secret keys
 exist without exposing their values; wait for both Applications/PVCs/workloads
@@ -161,7 +183,10 @@ and the dedicated ingress proxy to become healthy.
    Prometheus targets, including verified kubelet TLS and Argo metrics.
 2. Confirm Grafana HTTPS/login, provisioned dashboards, current numeric backup
    metadata, recent allowed platform/journal logs and absence of application
-   namespace log targets. Do not dump log contents into reports.
+   namespace log targets. If no backup ran in the one-hour journal lookback,
+   keep backup-log ingestion pending until the next natural execution; never
+   restart or fabricate a backup just to populate the log dashboard. Do not
+   dump log contents into reports.
 3. Send a synthetic `HomelabMonitoringTest` alert through Alertmanager, then
    resolve it. Label it clearly as a test; verify Discord firing and resolved
    messages contain only approved fields. Never stop applications or damage
