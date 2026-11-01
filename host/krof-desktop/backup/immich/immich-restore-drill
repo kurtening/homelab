@@ -48,6 +48,18 @@ def row_digest(row):
     return hashlib.sha256(row.rstrip(b'\r\n')).hexdigest()
 
 
+def projected_row(table, values, version=None):
+    values = list(values)
+    # v3.3.5 migration 1784986754474-AlbumDescriptionNullable changes only
+    # empty descriptions to NULL. Do not normalize actual database rows:
+    # the migration must really have produced the expected target value.
+    if table == 'album' and version == '3.3.5':
+        index = PROJECTIONS[table].index('description')
+        if values[index] == b'':
+            values[index] = b'\\N'
+    return row_digest(b'\t'.join(values))
+
+
 def dump_baseline(path, sql_output):
     """Fingerprint COPY rows; preserve plaintext only in private runtime files."""
     tables = {}
@@ -67,7 +79,8 @@ def dump_baseline(path, sql_output):
                 entry['rows'][row_digest(line)] += 1
                 if current in PROJECTIONS:
                     chosen = [values[entry['columns'].index(c)] for c in PROJECTIONS[current]]
-                    entry['projection'][row_digest(b'\t'.join(chosen))] += 1
+                    entry['projection'][projected_row(current, chosen)] += 1
+                    entry['projection_3_3_5'][projected_row(current, chosen, '3.3.5')] += 1
                 continue
             match = COPY.match(line)
             if match:
@@ -77,7 +90,8 @@ def dump_baseline(path, sql_output):
                     raise DrillError('Duplicate COPY section')
                 if current in PROJECTIONS and not set(PROJECTIONS[current]) <= set(columns):
                     raise DrillError('Required metadata columns absent from dump')
-                tables[current] = {'columns': columns, 'rows': Counter(), 'projection': Counter()}
+                tables[current] = {'columns': columns, 'rows': Counter(), 'projection': Counter(),
+                                   'projection_3_3_5': Counter()}
             elif line.startswith(b'COPY '):
                 raise DrillError('Unsupported COPY layout; inspect privately before restoring')
     if current is not None or not set(PROJECTIONS) <= set(tables):
@@ -201,6 +215,8 @@ class Stack:
             rows = self.query(sql).splitlines()
             actual = Counter(row_digest(row) for row in rows)
             expected = baseline['projection'] if projected else baseline['rows']
+            if projected and self.inventory['version'] == '3.3.5':
+                expected = baseline['projection_3_3_5']
             report[table] = {'expected': sum(expected.values()), 'actual': sum(actual.values()), 'matched': expected == actual}
             if expected != actual:
                 (self.directory / 'content-report.json').write_text(json.dumps(report, indent=2))

@@ -106,6 +106,32 @@ class RecoveryTests(unittest.TestCase):
         with self.assertRaises(r.DrillError):
             r.assert_equal({'expected': 1}, {'expected': 0}, 'fixture')
 
+    def test_reviewed_album_migration_is_target_specific(self):
+        values = [b'id', b'album', b'\\N', b'', b'\\N']
+        migrated = [*values[:3], b'\\N', values[4]]
+        self.assertNotEqual(r.projected_row('album', values), r.projected_row('album', migrated))
+        self.assertEqual(r.projected_row('album', values, '3.3.5'), r.projected_row('album', migrated))
+        self.assertEqual(r.projected_row('album', values, '3.1.0'), r.projected_row('album', values))
+        nonempty = [*values[:3], b'description', values[4]]
+        self.assertEqual(r.projected_row('album', nonempty, '3.3.5'), r.projected_row('album', nonempty))
+        self.assertNotEqual(r.projected_row('album', nonempty, '3.3.5'), r.projected_row('album', migrated))
+
+    def test_target_comparison_requires_migration_and_rejects_other_changes(self):
+        source = dump_text().replace(b'\nfixture\tfixture\tfixture\tfixture\tfixture\n',
+                                     b'\nid\talbum\t\\N\t\t\\N\n')
+        self.dump.write_bytes(gzip.compress(source))
+        baseline = self.baseline()
+        stack = r.Stack(self.root, {'version': '3.3.5'}, self.dump, baseline, self.library, io.BytesIO())
+        def query(sql):
+            table = next(t for t in r.PROJECTIONS if ('public.' + r.quoted(t) + ' ') in sql)
+            return b'id\talbum\t\\N\t\\N\t\\N\n' if table == 'album' else b'\t'.join([b'fixture'] * len(r.PROJECTIONS[table])) + b'\n'
+        with patch.object(stack, 'query', side_effect=query), contextlib.redirect_stdout(io.StringIO()):
+            stack.compare(projected=True)
+        for actual in [b'id\talbum\t\\N\t\t\\N\n', b'id\tchanged\t\\N\t\\N\t\\N\n', b'']:
+            with patch.object(stack, 'query', side_effect=lambda sql: actual if 'public."album" ' in sql else query(sql)):
+                with self.assertRaises(r.DrillError):
+                    stack.compare(projected=True)
+
     def test_sql_failure_is_not_masked(self):
         with patch.object(r.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1)):
             with self.assertRaises(r.DrillError):

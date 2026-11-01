@@ -137,6 +137,15 @@ initialized startup, preserved core metadata, originals, and ML startup are
 required. Do not reset facial recognition, enable new sharing features, opt
 into revised models, or run bulk regeneration jobs during this upgrade.
 
+The target comparison explicitly expects the upstream
+[AlbumDescriptionNullable migration](https://github.com/immich-app/immich/blob/v3.3.5/server/src/schema/migrations/1784986754474-AlbumDescriptionNullable.ts):
+empty album descriptions become SQL `NULL`. Only the expected v3.3.5 baseline
+is transformed; actual rows are not normalized. Nonempty descriptions and all
+other selected fields must still match exactly. The initial rehearsal stopped
+on this representation change; isolated database comparison confirmed it was
+the only difference across the five checked metadata tables. A full corrected
+rehearsal remains required, including target machine-learning startup.
+
 Publish the paired application-image change as a separate draft PR only after
 the live isolated rehearsal passes. Review intervening release notes and mobile
 client compatibility. The target v3.3.5 release includes security fixes.
@@ -145,7 +154,30 @@ Before production merge, coordinate a write pause with every uploading client,
 quiesce the server using an approved maintenance/GitOps sequence, run the
 installed backup service, and verify its new snapshot. Argo self-healing must
 not silently undo quiescence: a plain imperative scale-down is insufficient.
-The exact maintenance method must be agreed and documented before rollout.
+The operator-selected exception is a temporary Argo auto-sync pause and
+scale-down, not a persistent manifest change. During the agreed window:
+
+1. Verify context and save the original `syncPolicy` of both `cluster-root`
+   and `immich` Applications into a protected local artifact. Confirm neither
+   has an active sync operation. Pause root automation first, then child
+   automation; the self-healing parent otherwise can undo a child-only pause.
+2. Confirm uploads and other writers are paused. Scale the Immich server and
+   machine-learning Deployments to zero and wait for their pods to terminate.
+   Keep database/cache running. Verify Argo is not recreating the writers.
+3. Run the installed backup service with interactive sudo. Require success
+   and verify the new database/media snapshot; record its ID, previous image
+   digests, and rollback prerequisites before requesting the upgrade merge.
+4. After operator review/merge, refresh the child and verify its desired
+   revision and paired target digests before syncing. Restore the captured
+   child automation policy, sync the reviewed revision, and check migrations
+   and health before restoring the captured parent policy. Do not overwrite
+   unrelated policy fields or enable automation that was originally disabled.
+5. On any failure, leave clients paused and report the maintenance state.
+   Restoring auto-sync before deciding which database/image pair is safe can
+   restart incompatible writers; follow the rollback checkpoint procedure.
+
+No pause, scale-down, backup installation, or production restore is performed
+by the recovery helper or by merging its tooling PR.
 
 After operator review/merge, verify migrations and workload readiness, HTTPS,
 login, timeline, albums, original downloads, playback, and ML inference with
@@ -166,8 +198,8 @@ Record these gates separately:
 | Gate | Current evidence |
 | --- | --- |
 | Scheduled backup and repository check | November 1 host job reported success |
-| Full file/database/media recovery | Pending isolated helper execution |
-| v3.3.5 isolated migration rehearsal | Pending successful baseline recovery |
+| Full file/database/media recovery | Operator-run baseline passed: all 66 dump tables, 5,455 active original checksums, five core metadata tables, v3.1.0 startup and ML startup |
+| v3.3.5 isolated migration rehearsal | Migrations/startup reached metadata comparison; stopped on reviewed empty-description-to-NULL migration; corrected full rerun pending |
 | Production upgrade acceptance | Not started; still v3.1.0 |
 | Post-upgrade backup | Not applicable yet |
 | Independent Immich Restic password recovery | Awaiting operator confirmation |
