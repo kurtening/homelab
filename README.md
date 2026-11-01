@@ -4,8 +4,8 @@
 > **Work in progress.** This repository describes a functioning personal
 > homelab, but it is not yet a complete disaster-recovery system. Host
 > provisioning, complete credential recovery, off-machine backups, and a full
-> host-loss recovery procedure are still missing. Jellyfin has a verified
-> isolated application restore; that does not cover the entire homelab.
+> host-loss recovery procedure are still missing. Jellyfin and Immich have
+> verified isolated application restores; that does not cover the entire homelab.
 
 A GitOps-managed, single-node K3s homelab running on `krof-desktop`, a desktop
 used for both gaming and homelab workloads. Argo CD reconciles Kubernetes
@@ -21,7 +21,7 @@ ingress, and OpenTofu/Terragrunt records the repository's GitHub governance.
 | Applications | Immich, Minecraft, Jellyfin, and `whoami` | Minecraft and Jellyfin run as singletons; Compose Jellyfin remains stopped for rollback |
 | Private ingress | Tailscale Kubernetes Operator | OAuth Secret is SOPS-encrypted in Git; tailnet policy remains external |
 | Persistent storage | Static local Immich, Minecraft, and Jellyfin PVs | Retained and bound to `krof-desktop` |
-| Backups | Application-consistent archives and Restic snapshots | Jellyfin restore/content and first scheduled-chain checks passed; local only |
+| Backups | Application archives, database dumps and Restic snapshots | Jellyfin restore/content and first scheduled-chain checks passed; Immich full recovery/rehearsal and post-upgrade backups passed; local only |
 | Repository policy | OpenTofu/Terragrunt | Planned and applied manually with remote state |
 
 Only Argo-managed Kubernetes resources change automatically after a merge.
@@ -67,8 +67,12 @@ before allowing the root Argo CD Application to reconcile dependent workloads.
 - The SOPS age identity and host credentials require independent recovery.
 - The Restic repository is local to the same desktop and has no off-machine
   copy.
-- No cold-restore drill has proven recovery of PostgreSQL, media, credentials,
-  and application availability.
+- No full host-loss drill has proven combined recovery of host/K3s, storage,
+  credentials, ingress, and application availability.
+- Immich's isolated full PostgreSQL/media recovery, v3.3.5 rehearsal,
+  independent backup-password verification, production acceptance, and
+  post-upload backup passed. This does not make a migrated database safe to
+  downgrade or provide the missed final quiesced pre-upgrade checkpoint.
 - Jellyfin's isolated application restore/content checks, independent
   age-identity recovery verification, and first scheduled backup chain passed.
   See the Jellyfin runbook for the current evidence scope and retention gates.
