@@ -160,7 +160,7 @@ PostgreSQL, Valkey, GPU configuration, credentials, resource settings, and
 storage bindings remain unchanged. Review the two manifest image references
 against the retained target inventory before the maintenance window.
 
-Merge the recovery-tooling PR first and review the image change separately
+The recovery-tooling PR is merged. Review the image change separately
 against `main`. Do not merge the image PR just because its schema checks pass:
 once automation is restored, Argo can start migrations immediately. The
 independent Restic recovery password, agreed write pause, verified final
