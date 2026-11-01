@@ -49,6 +49,7 @@ jobs:
           /tmp/monitoring-tests/bin/pip install -r scripts/requirements-monitoring.txt
           /tmp/monitoring-tests/bin/python scripts/test-maintenance-inventory.py
           /tmp/monitoring-tests/bin/python scripts/maintenance-inventory --check
+          /tmp/monitoring-tests/bin/python scripts/test-homelab-status.py
           /tmp/monitoring-tests/bin/python scripts/test-monitoring-collector.py
           /tmp/monitoring-tests/bin/python scripts/test-monitoring-host.py
           /tmp/monitoring-tests/bin/python scripts/test-monitoring-manifests.py
