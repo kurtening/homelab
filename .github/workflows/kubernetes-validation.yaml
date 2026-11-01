@@ -40,6 +40,9 @@ jobs:
       - name: Check Immich backup dump pipeline
         run: python3 scripts/test-immich-backup.py
 
+      - name: Check Minecraft backup save recovery and installation guards
+        run: python3 scripts/test-minecraft-backup.py
+
       - name: Check monitoring collector and pinned configurations
         run: |
           python3 -m venv /tmp/monitoring-tests

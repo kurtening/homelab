@@ -35,7 +35,8 @@ die() {
 }
 
 rcon() {
-  "${K3S_BIN}" kubectl \
+  timeout --foreground --kill-after=5s 60s "${K3S_BIN}" kubectl \
+    --request-timeout=60s \
     --namespace "${MINECRAFT_NAMESPACE}" \
     exec "${MINECRAFT_POD}" \
     --container "${MINECRAFT_CONTAINER}" \
@@ -60,6 +61,8 @@ cleanup() {
 }
 
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 verify_mount() {
   local mount_path="$1"
@@ -92,6 +95,11 @@ verify_mount() {
 
 log "Validating storage mounts"
 
+# A second invocation must not resume saves while the first is still copying.
+mkdir -p /run/minecraft-backup
+exec 9>/run/minecraft-backup/backup.lock
+flock --nonblock 9 || die "Another Minecraft backup is already running"
+
 verify_mount "${DATA_MOUNT}" "${DATA_UUID}"
 verify_mount "${BACKUP_MOUNT}" "${BACKUP_UUID}"
 
@@ -109,6 +117,7 @@ verify_mount "${BACKUP_MOUNT}" "${BACKUP_UUID}"
 
 command -v restic >/dev/null ||
   die "restic is unavailable"
+command -v timeout >/dev/null || die "timeout is unavailable"
 
 log "Locating Minecraft pod"
 
@@ -140,17 +149,19 @@ log "Validating Restic repository"
 restic snapshots >/dev/null
 
 log "Flushing and suspending Minecraft world saves"
-rcon save-off
+# Arm recovery BEFORE the request: the server may process it even if exec fails.
 SAVES_DISABLED=1
+rcon save-off
 rcon save-all flush
 
 log "Creating Minecraft snapshot"
 
 cd "${DATA_ROOT}"
 
-restic backup \
+timeout --foreground --kill-after=30s 2h restic backup \
   --host krof-desktop \
   --tag minecraft \
+  --quiet \
   --one-file-system \
   .
 

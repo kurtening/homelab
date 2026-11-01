@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+"""Read-only root preflight. Never print credentials, player names or filenames."""
+import json
+import argparse
+import getpass
+import hmac
+import os
+from pathlib import Path
+import socket
+import stat
+import subprocess
+import sys
+
+
+def require(condition, message):
+    if not condition:
+        raise RuntimeError(message)
+
+
+def capture(arguments):
+    result = subprocess.run(arguments, capture_output=True, timeout=120, check=False)
+    require(result.returncode == 0, 'protected command failed; inspect locally')
+    return result.stdout
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--verify-vault-password', action='store_true')
+    arguments = parser.parse_args()
+    require(os.geteuid() == 0, 'interactive sudo is required')
+    require(socket.gethostname().split('.')[0] == 'krof-desktop', 'wrong host')
+    for mount, uuid in [('/mnt/data-drive-2tb', 'cb3505ce-970c-49c2-ad50-4bc07ddbe508'),
+                        ('/mnt/backup', '3180031e-abd5-4d6a-8aac-abe3e41dc950')]:
+        found = json.loads(capture(['findmnt', '--json', '--mountpoint', mount,
+                                   '--output', 'TARGET,FSTYPE,UUID,OPTIONS']))['filesystems']
+        require(len(found) == 1 and found[0]['target'] == mount
+                and found[0]['fstype'] == 'ext4' and found[0]['uuid'] == uuid
+                and 'rw' in found[0]['options'].split(','), 'wrong or read-only mount')
+    print('PASS: both expected independent storage mounts are present and writable')
+    data = Path('/mnt/data-drive-2tb/homelab/minecraft')
+    require(data.is_dir() and not data.is_symlink(), 'world directory unavailable')
+    require((data / 'world/level.dat').is_file()
+            and (data / 'world/level.dat').stat().st_size > 0, 'nonempty world metadata missing')
+    repository = Path('/mnt/backup/homelab/minecraft/repository')
+    require(repository.is_dir() and not repository.is_symlink()
+            and (repository / 'config').is_file(), 'existing repository configuration missing; do not initialize blindly')
+    password = Path('/etc/restic/minecraft-password')
+    metadata = password.lstat()
+    require(stat.S_ISREG(metadata.st_mode) and metadata.st_uid == 0
+            and metadata.st_mode & 0o077 == 0 and metadata.st_size > 0,
+            'existing password unavailable or permissions unsafe; do not replace it')
+    environment = dict(os.environ, RESTIC_REPOSITORY=str(repository),
+                       RESTIC_PASSWORD_FILE=str(password))
+    result = subprocess.run(['restic', '--no-cache', '--no-lock', 'snapshots', '--json',
+                             '--host', 'krof-desktop', '--tag', 'minecraft'],
+                            env=environment, capture_output=True, timeout=120, check=False)
+    require(result.returncode == 0, 'existing repository cannot be opened; preserve password/repository')
+    snapshots = json.loads(result.stdout)
+    require(isinstance(snapshots, list), 'unexpected snapshot metadata')
+    print(f'PASS: existing dedicated password opens repository; matching_snapshots={len(snapshots)}')
+    if arguments.verify_vault_password:
+        candidate = getpass.getpass('Paste Minecraft Restic password from vault (hidden): ')
+        require(hmac.compare_digest(candidate.encode(), password.read_bytes().rstrip(b'\r\n')),
+                'vault password does not match the working host password')
+        del candidate
+        print('PASS: independent vault copy matches the existing working repository password')
+    for command in ['timeout', 'flock', 'restic', 'systemd-analyze']:
+        capture(['sh', '-c', 'command -v "$1" >/dev/null', 'check', command])
+    require(Path('/usr/local/bin/k3s').is_file(), 'K3s binary missing')
+    print('PASS: required backup tools and world metadata exist; no backups or changes performed')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired) as error:
+        # OS exception strings can contain private paths; print fixed diagnostics only.
+        message = str(error) if type(error) is RuntimeError else 'protected preflight could not complete'
+        print(f'FAIL: {message}', file=sys.stderr)
+        sys.exit(1)
