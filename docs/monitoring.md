@@ -2,6 +2,14 @@
 
 ## Activation declared; live acceptance requires evidence
 
+The stack has since reconciled. Grafana browser/dashboard usability and Discord
+firing/resolution are operator-confirmed. On November 1, Minecraft backup journal
+source/unit labels were observed in Loki without reading records; gaming memory
+measurements passed the budget, with no monitoring-pod restarts. Idle and operator
+performance acceptance remain pending. See `operations.md` for scoped evidence.
+The activation/preflight steps below remain the procedure, not a claim that the
+deployment is still waiting for activation.
+
 PR #39 staged standalone manifests and encrypted credentials without connecting
 the Applications. This separate activation change connects the `monitoring/`
 child directory to the cluster root. Merging it can immediately reconcile both
@@ -56,8 +64,9 @@ During the staging read-only host preview on November 1, both expected mounts
 matched and Immich/Jellyfin units exposed successful completion metadata.
 `minecraft-restic-backup.service` returned LoadState=not-found. Its metrics
 therefore report unavailable/unknown, and an activated stack should warn about
-it after boot grace. This PR does not install or repair Minecraft backups;
-review that separate prerequisite rather than hiding the alert.
+it after boot grace. Minecraft's separately reviewed backup was subsequently
+installed and manually verified; its timer is enabled. Do not suppress unknown
+or failed evidence to hide a future backup problem.
 
 - Host CPU/memory/filesystem space/inodes, expected data/backup filesystem UUIDs,
   Kubernetes readiness and PVCs/Jobs, Argo health, monitoring self-health,

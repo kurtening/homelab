@@ -1,0 +1,257 @@
+#!/usr/bin/env python3
+"""Bounded, read-only diagnostics. No sudo, secrets, Restic access or repairs."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import socket
+import subprocess
+import sys
+import time
+
+CONTEXT = 'homelab-desktop'
+NODE = 'krof-desktop'
+SSH_TARGET = 'kurtening@krof-desktop'
+MOUNTS = {'data': ('/mnt/data-drive-2tb', 'cb3505ce-970c-49c2-ad50-4bc07ddbe508'),
+          'backup': ('/mnt/backup', '3180031e-abd5-4d6a-8aac-abe3e41dc950')}
+APPS = ('immich', 'jellyfin', 'minecraft')
+
+
+class Unavailable(Exception):
+    pass
+
+
+def command(args, input=None, timeout=20):
+    try:
+        result = subprocess.run(args, input=input, capture_output=True, text=True,
+                                timeout=timeout, check=False)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise Unavailable from error
+    if result.returncode:
+        raise Unavailable(result.returncode)
+    return result.stdout
+
+
+def installed_files():
+    files = {}
+    for app in APPS:
+        for suffix in ('', '.service', '.timer'):
+            name = app + '-restic-backup' + suffix
+            destination = '/etc/systemd/system/' if suffix else '/usr/local/sbin/'
+            files['backup/' + app + '/' + name] = destination + name
+    for suffix in ('', '.service', '.timer'):
+        name = 'homelab-metrics' + suffix
+        destination = '/etc/systemd/system/' if suffix else '/usr/local/sbin/'
+        files['monitoring/' + name] = destination + name
+    return files
+
+
+def host_observation():
+    # This mode is also streamed to SSH's Python stdin; no remote installation.
+    if socket.gethostname().split('.')[0] != NODE:
+        return {'schema_version': 1, 'target': False}
+    result = {'schema_version': 1, 'target': True, 'observed_at': time.time(),
+              'mounts': {}, 'files': {}, 'units': {}, 'collector': None}
+    for role, (path, uuid) in MOUNTS.items():
+        try:
+            found = json.loads(command(['findmnt', '--json', '--mountpoint', path,
+                                        '--output', 'TARGET,FSTYPE,UUID,OPTIONS']))['filesystems']
+            result['mounts'][role] = (len(found) == 1 and found[0]['target'] == path
+                and found[0]['fstype'] == 'ext4' and found[0]['uuid'] == uuid
+                and 'rw' in found[0]['options'].split(','))
+        except Unavailable as error:
+            result['mounts'][role] = False if error.args == (1,) else None
+    for key, name in installed_files().items():
+        try:
+            path = Path(name)
+            result['files'][key] = ('symlink' if path.is_symlink() else
+                                    hashlib.sha256(path.read_bytes()).hexdigest())
+        except FileNotFoundError:
+            result['files'][key] = 'missing'
+        except PermissionError:
+            result['files'][key] = 'protected'
+    for app in (*APPS, 'collector'):
+        stem = app + '-restic-backup' if app != 'collector' else 'homelab-metrics'
+        fields = {}
+        try:
+            for suffix, props in [('.service', ['LoadState', 'ActiveState', 'Result', 'ExecMainStatus']),
+                                   ('.timer', ['LoadState', 'ActiveState', 'UnitFileState'])]:
+                output = command(['systemctl', 'show', stem + suffix,
+                                  *[item for prop in props for item in ('-p', prop)]])
+                parsed = dict(line.split('=', 1) for line in output.splitlines() if '=' in line)
+                # Copy only enumerated values, never arbitrary systemd output.
+                for prop in props:
+                    value = parsed.get(prop, '')
+                    allowed = {'LoadState': {'loaded', 'not-found', 'masked', 'error'},
+                               'ActiveState': {'active', 'inactive', 'activating', 'deactivating', 'failed'},
+                               'Result': {'success', 'exit-code', 'signal', 'timeout', 'resources', 'oom-kill'},
+                               'UnitFileState': {'enabled', 'disabled', 'static', 'masked'}}
+                    fields[suffix + prop] = (value if (value.isdigit() if prop == 'ExecMainStatus'
+                                                      else value in allowed[prop]) else 'unknown')
+            result['units'][app] = fields
+            object_name = (stem + '.service').replace('-', '_2d').replace('.', '_2e')
+            try:
+                raw = command(['busctl', 'get-property', 'org.freedesktop.systemd1',
+                               '/org/freedesktop/systemd1/unit/' + object_name,
+                               'org.freedesktop.systemd1.Service', 'ExecMainExitTimestamp']).strip()
+                fields['finished'] = int(raw.split()[1]) / 1e6 if re.fullmatch(r't [0-9]+', raw) else 0
+            except Unavailable:
+                fields['finished'] = 0
+        except Unavailable:
+            result['units'][app] = None
+    try:
+        text = Path('/var/lib/homelab-monitoring/textfile/homelab.prom').read_text()
+        match = re.search(r'^homelab_collector_last_success_timestamp_seconds ([0-9.]+)$', text, re.M)
+        if match:
+            result['collector'] = float(match[1])
+    except (OSError, ValueError):
+        pass
+    return result
+
+
+def check_host(observed, root, add, now):
+    if not isinstance(observed, dict):
+        raise ValueError('invalid report')
+    if observed.get('schema_version') != 1:
+        raise ValueError('unsupported report')
+    if observed.get('target') is not True:
+        add('host.target', 'FAIL', 'Unexpected host; remaining host checks skipped')
+        return
+    timestamp = observed.get('observed_at', 0)
+    if not isinstance(timestamp, (int, float)) or not -60 <= now - timestamp <= 300:
+        add('host.report', 'PENDING', 'Host report is stale or has invalid time; collect again')
+        return
+    add('host.target', 'PASS', 'Expected host verified')
+    for role in MOUNTS:
+        value = observed.get('mounts', {}).get(role)
+        add('mount.' + role, 'PASS' if value is True else 'FAIL' if value is False else 'PENDING',
+            'Expected writable device' if value is True else 'Mount identity/writability not verified')
+    for key in installed_files():
+        expected = hashlib.sha256((root / 'host/krof-desktop' / key).read_bytes()).hexdigest()
+        actual = observed.get('files', {}).get(key)
+        state = 'PASS' if actual == expected else 'PENDING' if actual in (None, 'protected') else 'FAIL'
+        add('file.' + key, state, 'Reviewed bytes match' if state == 'PASS' else
+            'Protected read required' if state == 'PENDING' else 'Missing, symlinked or drifted installed file; review only')
+    for app in (*APPS, 'collector'):
+        fields = observed.get('units', {}).get(app)
+        state = 'PENDING'
+        if fields:
+            if fields.get('.serviceLoadState') in ('not-found', 'masked', 'error') or fields.get('.timerLoadState') in ('not-found', 'masked', 'error'):
+                state = 'FAIL'
+            elif fields.get('.serviceLoadState') == fields.get('.timerLoadState') == 'loaded':
+                state = ('PASS' if fields.get('.timerActiveState') == 'active'
+                         and fields.get('.timerUnitFileState') == 'enabled' else 'FAIL')
+        add('timer.' + app, state, 'Enabled/active timer and loaded service' if state == 'PASS'
+            else 'Timer/service unavailable or not enabled; no changes made')
+        if fields and fields.get('.serviceLoadState') == 'loaded':
+            running = fields.get('.serviceActiveState') in ('active', 'activating', 'deactivating')
+            failed = fields.get('.serviceResult') not in ('success', 'unknown', None) or fields.get('.serviceActiveState') == 'failed'
+            completed = (not running and fields.get('.serviceResult') == 'success'
+                         and fields.get('.serviceExecMainStatus') == '0' and 0 < fields.get('finished', 0) <= now + 60)
+            add('service.' + app, 'FAIL' if failed and not running else 'PASS' if completed else 'PENDING',
+                'Service failure reported' if failed and not running else
+                'Successful service completion only; not scheduled/recovery proof' if completed else
+                'Running or completed invocation not observable; success remains unknown')
+    timestamp = observed.get('collector')
+    state = ('PENDING' if timestamp is None else 'PASS' if -60 <= now - timestamp <= 300 else 'FAIL')
+    add('collector.freshness', state, 'Fresh numeric collector evidence' if state == 'PASS' else
+        'Protected read required or collector evidence stale')
+
+
+def kube(args):
+    return json.loads(command(['kubectl', '--context', CONTEXT, '--request-timeout=10s', *args]))
+
+
+def check_cluster(contract, add):
+    if command(['kubectl', 'config', 'current-context']).strip() != CONTEXT:
+        add('cluster.context', 'FAIL', 'Wrong active kube context; no cluster requests made')
+        return
+    add('cluster.context', 'PASS', 'Expected active context')
+    nodes = kube(['get', 'nodes', '-o', 'json'])['items']
+    if len(nodes) != 1 or nodes[0]['metadata']['name'] != NODE:
+        add('cluster.target', 'FAIL', 'Unexpected node identity/topology; further cluster checks skipped')
+        return
+    ready = any(c.get('type') == 'Ready' and c.get('status') == 'True' for c in nodes[0]['status']['conditions'])
+    add('cluster.target', 'PASS' if ready else 'FAIL', 'Expected single node readiness')
+    applications = {a['metadata']['name']: a for a in kube(['get', 'applications', '-n', 'argocd', '-o', 'json'])['items']}
+    for name in contract['applications']:
+        status = applications.get(name, {}).get('status', {})
+        good = status.get('sync', {}).get('status') == 'Synced' and status.get('health', {}).get('status') == 'Healthy'
+        add('argo.' + name, 'PASS' if good else 'FAIL', 'Synced/Healthy' if good else 'Missing or not Synced/Healthy')
+    for namespace, expected in contract['resources'].items():
+        items = kube(['get', 'deployments,statefulsets,daemonsets,persistentvolumeclaims', '-n', namespace, '-o', 'json'])['items']
+        found = {(item['kind'], item['metadata']['name']): item for item in items}
+        for kind, name, binding in expected:
+            item = found.get((kind, name), {})
+            spec, status = item.get('spec', {}), item.get('status', {})
+            if kind == 'PersistentVolumeClaim':
+                good = status.get('phase') == 'Bound' and bool(spec.get('volumeName')) and (not binding or spec.get('volumeName') == binding)
+            else:
+                desired = status.get('desiredNumberScheduled', 0) if kind == 'DaemonSet' else spec.get('replicas', 1)
+                count = status.get('numberReady', 0) if kind == 'DaemonSet' else status.get('readyReplicas', 0)
+                good = bool(item) and desired > 0 and count == desired and status.get('observedGeneration', 0) >= item['metadata'].get('generation', 1)
+            add('resource.' + namespace + '.' + kind + '.' + name, 'PASS' if good else 'FAIL',
+                'Ready/Bound with expected binding' if good else 'Missing, unready or unexpected storage binding')
+
+
+def exit_status(checks):
+    return 1 if any(c['status'] == 'FAIL' for c in checks) else 2 if any(c['status'] == 'PENDING' for c in checks) else 0
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--json', action='store_true', help='Machine-readable redacted result')
+    parser.add_argument('--host', action='store_true', help='Host metadata only; run explicitly on the desktop, optionally with interactive sudo')
+    parser.add_argument('--host-report', type=Path, help='Fresh JSON from an explicit --host check, outside the worktree')
+    args = parser.parse_args()
+    if args.host:
+        print(json.dumps(host_observation()))
+        return 0
+    root = Path(__file__).resolve().parents[1]
+    checks = []
+    def add(check, status, message):
+        checks.append({'check': check, 'status': status, 'message': message})
+    try:
+        contract = json.loads((root / 'scripts/homelab-contract.json').read_text())
+        check_cluster(contract, add)
+    except Unavailable:
+        add('cluster.access', 'PENDING', 'Cluster/tool access unavailable; offline is not broken GitOps')
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        add('cluster.report', 'FAIL', 'Malformed contract or cluster metadata; inspect locally')
+    try:
+        if args.host_report:
+            if args.host_report.resolve().is_relative_to(root) or args.host_report.stat().st_mode & 0o077 or args.host_report.stat().st_size > 262144:
+                raise ValueError('protected external report required')
+            text = args.host_report.read_text()
+        else:
+            text = command(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5',
+                            '-o', 'StrictHostKeyChecking=yes', SSH_TARGET, 'python3', '-', '--host'],
+                           input=Path(__file__).read_text(), timeout=90)
+        check_host(json.loads(text), root, add, time.time())
+    except Unavailable:
+        add('host.access', 'PENDING', 'SSH access unavailable; no sudo attempted')
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        add('host.report', 'FAIL', 'Malformed/inaccessible host report; collect again without exposing raw data')
+    code = exit_status(checks)
+    result = {'schema_version': 1, 'status': {0: 'PASS', 1: 'FAIL', 2: 'PENDING'}[code], 'checks': checks,
+              'protected_follow_up': "ssh -t kurtening@krof-desktop 'sudo python3 /tmp/homelab-status --host --json' (copy reviewed script first)",
+              'limitations': ['Operational metadata only; does not verify scheduled-chain snapshot contents, restore acceptance, gaming sessions or secret custody']}
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        for check in checks:
+            print('{status}: {check}: {message}'.format(**check))
+        print('Protected follow-up: copy this reviewed script to /tmp/homelab-status on the desktop, then run:')
+        print("ssh -t kurtening@krof-desktop 'sudo python3 /tmp/homelab-status --host --json'")
+        print('Only hashes/metadata are returned. Never publish raw source reports; no repairs or backup runs are performed.')
+    return code
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, Unavailable):
+        print('FAIL: status inspection unavailable; inspect locally without exposing raw output', file=sys.stderr)
+        sys.exit(1)

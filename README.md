@@ -98,6 +98,8 @@ the formatting and validation commands mirrored from the IaC workflow.
 
 ## Project documentation
 
+- [Daily operation and acceptance](docs/operations.md) provides the read-only
+  health command, evidence boundaries and remaining closeout gates.
 - [Monitoring](docs/monitoring.md) describes the separately reviewed activation,
   private metrics/logs, Discord credential setup, budgets and activation gates.
 - [Architecture](docs/architecture.md) explains ownership, reconciliation,

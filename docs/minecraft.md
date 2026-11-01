@@ -51,7 +51,11 @@ Do not regenerate credentials or initialize a repository merely because the
 backup service is missing. The November 1, 2026 read-only host check found an
 existing repository and a working dedicated password, but **zero matching
 snapshots** and no installed backup executable/service/timer. That is not backup
-coverage. Preserve the existing password and repository.
+coverage. The operator subsequently installed the reviewed job, completed manual
+snapshot `71a80f59` at 21:39:47 Manila, passed isolated file/world-gzip verification
+and independent password comparison, and enabled the timer for November 2 at
+05:30 Manila. Scheduled execution and server startup/gameplay recovery remain
+unverified. Preserve the existing password and repository.
 
 For a genuinely new host, provision a dedicated password and repository only
 after verifying both are absent and the expected independent backup device is
