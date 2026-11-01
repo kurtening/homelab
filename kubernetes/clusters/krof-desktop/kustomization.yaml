@@ -16,3 +16,4 @@ resources:
   - jellyfin-secrets-application.yaml
   - jellyfin-storage-application.yaml
   - jellyfin-application.yaml
+  - monitoring

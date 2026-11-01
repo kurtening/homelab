@@ -258,13 +258,13 @@ management path.
 
 ## Host-level services
 
-Monitoring is staged but not connected to the root Application. Its standalone
+Monitoring's reviewed activation connects it to the root Application. Its standalone
 Prometheus/Alertmanager/Grafana/Loki/Alloy and exporters use disposable local
 history and a strict budget. The optional host metadata collector is installed
 manually; it does not modify backup jobs or read Restic credentials. See
 `docs/monitoring.md` for activation gates, log privacy, Discord and the blind
-spot when the desktop or monitoring stack is off. Staged files are not evidence
-that monitoring or notification delivery is live.
+spot when the desktop or monitoring stack is off. Declared activation is not
+evidence that monitoring or notification delivery has passed live acceptance.
 
 Not every service belongs in Kubernetes. Host Tailscale and Sunshine are intended to remain host-level because they provide access to, or depend directly on, the desktop itself. Their installation and live state are not managed by this repository and must be verified on the host.
 

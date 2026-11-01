@@ -30,10 +30,14 @@ class Tests(unittest.TestCase):
         self.assertEqual(memory+int(proxy['memory'][:-2])+32,2048)
         self.assertLessEqual(cpu+int(proxy['cpu'][:-1])+100,2000)
 
-    def test_staged_applications_disconnected(self):
+    def test_reviewed_activation_connects_both_applications(self):
         rendered=subprocess.check_output(['kustomize','build',str(ROOT/'kubernetes/clusters/krof-desktop')],text=True)
         names=[d['metadata']['name'] for d in yaml.safe_load_all(rendered) if d]
-        self.assertNotIn('monitoring',names);self.assertNotIn('monitoring-secrets',names)
+        self.assertEqual(names.count('monitoring'),1)
+        self.assertEqual(names.count('monitoring-secrets'),1)
+        apps={d['metadata']['name']:d for d in yaml.safe_load_all(rendered) if d and d['kind']=='Application'}
+        self.assertEqual(apps['monitoring']['spec']['source']['path'],'kubernetes/apps/monitoring')
+        self.assertEqual(apps['monitoring-secrets']['spec']['source']['path'],'kubernetes/secrets/monitoring')
 
     def test_only_private_grafana_ingress(self):
         ing=[d for d in DOCS if d['kind']=='Ingress']
