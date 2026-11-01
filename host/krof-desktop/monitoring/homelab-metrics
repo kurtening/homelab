@@ -113,6 +113,9 @@ def main():
     args.state_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
     textfile = args.state_dir / 'textfile'
     textfile.mkdir(mode=0o755, exist_ok=True)
+    # The service's UMask=0077 must not make numeric metrics unreadable to the
+    # unprivileged Node Exporter bind mount. State JSON remains private.
+    textfile.chmod(0o755)
     atomic_write(path, json.dumps(state), 0o600)
     atomic_write(textfile / 'homelab.prom', metrics, 0o644)
 

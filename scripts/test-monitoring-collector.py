@@ -2,6 +2,7 @@
 import importlib.machinery
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import shutil
@@ -66,6 +67,17 @@ class Tests(unittest.TestCase):
                 with self.assertRaises(OSError):c.atomic_write(p,'new',0o644)
             self.assertEqual(p.read_text(),'old')
             self.assertEqual(len(list(Path(d).iterdir())),1)
+
+    def test_private_umask_does_not_hide_numeric_metrics_directory(self):
+        with tempfile.TemporaryDirectory() as d:
+            previous=os.umask(0o077)
+            try:
+                with patch.object(sys,'argv',['collector','--state-dir',d]),patch.object(c,'collect',return_value=({},'fixture 1\n')):
+                    c.main()
+            finally:os.umask(previous)
+            self.assertEqual((Path(d)/'textfile').stat().st_mode & 0o777,0o755)
+            self.assertEqual((Path(d)/'textfile/homelab.prom').stat().st_mode & 0o777,0o644)
+            self.assertEqual((Path(d)/'state.json').stat().st_mode & 0o777,0o600)
 
     def test_collection_reports_preexec_failure_and_unknown_history(self):
         o=self.observed();o.update(success=False,start=0,finish=0)
