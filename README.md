@@ -98,6 +98,8 @@ the formatting and validation commands mirrored from the IaC workflow.
   networking, storage, backups, and trust boundaries.
 - [Jellyfin operations](docs/jellyfin.md) covers the Compose migration,
   backup setup, cutover, and rollback.
+- [Immich operations](docs/immich.md) covers full database/media recovery,
+  isolated upgrade rehearsal, maintenance gates, and rollback requirements.
 - [Secret management](docs/secret-management.md) covers SOPS/age custody,
   Argo CD bootstrap, validation, and recovery.
 - [Minecraft](docs/minecraft.md) covers the private server, tailnet access,
