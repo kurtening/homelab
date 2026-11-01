@@ -204,7 +204,7 @@ Record these gates separately:
 | v3.3.5 isolated migration rehearsal | Operator-run corrected rehearsal passed: migrations, all 66 restored dump tables, 5,455 active original checksums, five core metadata tables, initialized startup, and separate ML startup; no inference/playback claim |
 | Production upgrade acceptance | Not started; still v3.1.0 |
 | Post-upgrade backup | Not applicable yet |
-| Independent Immich Restic password recovery | Pending verification of the dedicated backup password; the PostgreSQL password is a separate credential |
+| Independent Immich Restic password recovery | Operator confirmed November 1: independent vault copy unlocked the Immich repository using the hidden-prompt verifier; PostgreSQL password remains separate |
 
 Run synthetic coverage with `python3 scripts/test-immich-recovery.py`. CI does
 not receive production credentials or media. Off-machine protection and full
