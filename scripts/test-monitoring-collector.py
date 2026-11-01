@@ -5,10 +5,12 @@ import json
 from pathlib import Path
 import subprocess
 import shutil
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
+sys.dont_write_bytecode = True
 loader = importlib.machinery.SourceFileLoader('collector', str(Path(__file__).resolve().parents[1] / 'host/krof-desktop/monitoring/homelab-metrics'))
 spec = importlib.util.spec_from_loader(loader.name, loader)
 c = importlib.util.module_from_spec(spec)
