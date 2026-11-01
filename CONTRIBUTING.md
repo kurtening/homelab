@@ -11,6 +11,10 @@ welcome.
 4. Run the relevant validation commands.
 5. Open a pull request.
 
+For routine dependency/security reviews, follow [maintenance](docs/maintenance.md)
+and regenerate the recorded version inventory after intentional pin changes.
+This does not authorize host installation, automatic upgrades or cleanup.
+
 ## Validation
 
 Install and use the versions declared in `mise.toml`.
