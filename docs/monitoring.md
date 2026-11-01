@@ -30,7 +30,13 @@ Discord notifications. A dedicated ProxyClass limits only this new proxy.
 The configuration targets less than 1 GiB working-set memory including a
 32 MiB allowance for the host collector. It is not yet a measured guarantee.
 Container limits total 1888 MiB; the ingress proxy adds 128 MiB and the host
-collector 32 MiB, exactly 2 GiB. The monitoring namespace quota is 2016 MiB.
+collector 32 MiB, exactly 2 GiB. The operator actually places ingress proxies
+in `tailscale`, not the application namespace. The monitoring namespace quota
+is therefore 1888 MiB; the dedicated proxy's separate 128 MiB limit plus the
+collector retain the same total budget. Recording/alert/dashboard queries
+include only `ts-grafana-*` pod working sets in that other namespace, and
+proxy OOM/missing-metric checks prevent hiding its contribution. Other apps'
+Tailscale proxies are not charged to monitoring.
 CPU limits, including the collector, total at most two cores. No GPU access is
 used. Singleton Deployments use Recreate to avoid exceeding the quota during
 updates; brief monitoring-only outages are acceptable. Node Exporter uses
@@ -56,6 +62,10 @@ review that separate prerequisite rather than hiding the alert.
 - Host CPU/memory/filesystem space/inodes, expected data/backup filesystem UUIDs,
   Kubernetes readiness and PVCs/Jobs, Argo health, monitoring self-health,
   and kubelet container CPU/memory metrics. CPU gaming spikes do not page.
+- A dedicated ingress policy permits only the labeled Grafana proxy from the
+  `tailscale` namespace to Grafana TCP/3000. Other monitoring backends remain
+  same-namespace only. This corrects the initial activation's blocked HTTPS
+  path without opening monitoring to all pods in the operator namespace.
 - Internal Immich/Jellyfin HTTP health and Minecraft TCP checks do not verify
   authentication, playback, outside DNS or tailnet reachability. Minecraft
   being idle/paused is not a failure if its socket remains available.
@@ -74,6 +84,11 @@ review that separate prerequisite rather than hiding the alert.
   group membership are broader than the configured three-unit filter. Trust
   the pinned collector image accordingly; this is not per-unit filesystem
   isolation.
+  Initial Kubernetes API tailing can replay old platform logs. The final
+  pipeline drops entries older than the 24-hour retention window before writing
+  to Loki; these intentional drops are distinct from ingestion failures. The
+  initial rollout's discarded-sample reason was greater_than_max_sample_age,
+  not a current platform outage. No raw log records were needed to diagnose it.
 - Node Exporter runs unprivileged with read-only host proc/sys/root mounts and
   a separate read-only mount of the collector's numeric textfile directory.
   It has no token, capabilities or writable host mounts. Read-only host-root
