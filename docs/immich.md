@@ -4,7 +4,8 @@ The manifests pin server and machine learning v3.3.5 on the single-node K3s
 cluster. Full isolated recovery and a v3.1.0-to-v3.3.5 rehearsal passed before
 the image PR merged. Argo reconciled the new images before the coordinated
 write pause; no final quiesced pre-upgrade checkpoint was recorded. Production
-acceptance and a verified post-upgrade checkpoint remain separate gates.
+acceptance and the subsequent post-upload backup passed on November 1, 2026.
+These are distinct from the earlier isolated recovery and rehearsal evidence.
 
 ## Backup boundary
 
@@ -25,9 +26,11 @@ failed transfer is discarded and does not proceed to Restic.
 This avoids slow host-side gzip backpressure, implicated in the upstream
 [exec-output truncation issue](https://github.com/kubernetes/kubernetes/issues/142376).
 The two November 1 maintenance attempts reset during dump streaming before
-Restic started. An in-container compression probe passed; that is not a backup
-or repository-check PASS. Do not suppress streaming errors or switch protocols
-to obtain a nominal success, since silent truncation is also reported.
+Restic started. After the operator installed the reviewed compression fix,
+the existing hardened service completed the quiesced post-upgrade checkpoint
+and a subsequent post-upload backup, including repository checks. Do not
+suppress streaming errors or switch protocols to obtain a nominal success,
+since silent truncation is also reported.
 
 Merging this change does not update the installed host script. Inspect and
 install the reviewed script explicitly before retrying the host service; keep
@@ -245,10 +248,30 @@ Record these gates separately:
 | Scheduled backup and repository check | November 1 host job reported success |
 | Full file/database/media recovery | Operator-run baseline passed: all 66 dump tables, 5,455 active original checksums, five core metadata tables, v3.1.0 startup and ML startup |
 | v3.3.5 isolated migration rehearsal | Operator-run corrected rehearsal passed: migrations, all 66 restored dump tables, 5,455 active original checksums, five core metadata tables, initialized startup, and separate ML startup; no inference/playback claim |
-| Production upgrade acceptance | Argo deployed v3.3.5 and reported healthy before maintenance; user-facing acceptance still pending |
+| Production upgrade acceptance | November 1: v3.3.5 API/version, migration completion, database/cache readiness and ML ping passed; operator confirmed requested HTTPS/login/content/download/playback/client checks and controlled upload |
 | Final quiesced pre-upgrade checkpoint | Not recorded before automatic reconciliation; the earlier restore-tested snapshot is not an equivalent final checkpoint |
-| Post-upgrade backup | Pending; two host attempts failed during dump streaming; corrected compression probe only passed |
+| Quiesced post-upgrade checkpoint | Snapshot `fb00f071`, November 1 at 15:09:35 Asia/Manila; hardened service and repository check passed with server/ML stopped |
+| Post-upload backup | Snapshot `f04f1946`, November 1 at 15:29:38 Asia/Manila; service completed at 15:29:44, repository check passed; normal-upload gate satisfied |
 | Independent Immich Restic password recovery | Operator confirmed November 1: independent vault copy unlocked the Immich repository using the hidden-prompt verifier; PostgreSQL password remains separate |
+
+The captured root/Immich Argo policies and original replica counts were
+restored after the quiesced checkpoint. Both Applications were Synced/Healthy
+and all four workloads ready at the final check; the host timer remained
+enabled. These are November 1 observations, not continuous monitoring claims.
+
+The two new snapshots have not themselves undergone another isolated restore
+drill. The completed full recovery/rehearsal used snapshot `3d6d4ddf`; its
+point-in-time content and the independent password recovery are the recovery
+evidence. Never use either post-upgrade snapshot to start v3.1.0: its database
+has already migrated. A rollback to that earlier tested checkpoint could lose
+changes made afterward; a final write-quiesced pre-upgrade checkpoint cannot
+be reconstructed retroactively.
+
+Retain stopped test services, protected restored media/database copies, logs,
+and the previous installed backup script until their exact cleanup targets
+are reviewed. No cleanup is part of this closeout. Jellyfin's separate
+seven-successful-scheduled-cycle rollback hold is unchanged. Off-machine
+backups and a full host-loss recovery drill remain outstanding.
 
 Run synthetic coverage with `python3 scripts/test-immich-recovery.py` and
 `python3 scripts/test-immich-backup.py`. CI does
