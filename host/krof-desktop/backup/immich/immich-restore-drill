@@ -1,0 +1,372 @@
+#!/usr/bin/env python3
+"""Restore an explicit Immich snapshot into isolated Docker services only."""
+import argparse
+from collections import Counter
+import gzip
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import uuid
+
+
+class DrillError(Exception):
+    pass
+
+
+COPY = re.compile(rb'^COPY public\.("?[A-Za-z_][A-Za-z0-9_]*"?) \(([^\r\n]+)\) FROM stdin;\r?\n$')
+IDENT = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
+PROJECTIONS = {
+    'user': ('id', 'email', 'isAdmin', 'deletedAt'),
+    'asset': ('id', 'ownerId', 'originalPath', 'checksum', 'deletedAt', 'isExternal'),
+    'album': ('id', 'albumName', 'albumThumbnailAssetId', 'description', 'deletedAt'),
+    'album_asset': ('albumId', 'assetId'),
+    'library': ('id', 'ownerId', 'name'),
+}
+
+
+def identifier(value):
+    name = value.strip().strip('"')
+    if not IDENT.fullmatch(name):
+        raise DrillError('Unsupported SQL identifier in dump')
+    return name
+
+
+def quoted(value):
+    return '"' + identifier(value) + '"'
+
+
+def row_digest(row):
+    return hashlib.sha256(row.rstrip(b'\r\n')).hexdigest()
+
+
+def projected_row(table, values, version=None):
+    values = list(values)
+    # v3.3.5 migration 1784986754474-AlbumDescriptionNullable changes only
+    # empty descriptions to NULL. Do not normalize actual database rows:
+    # the migration must really have produced the expected target value.
+    if table == 'album' and version == '3.3.5':
+        index = PROJECTIONS[table].index('description')
+        if values[index] == b'':
+            values[index] = b'\\N'
+    return row_digest(b'\t'.join(values))
+
+
+def dump_baseline(path, sql_output):
+    """Fingerprint COPY rows; preserve plaintext only in private runtime files."""
+    tables = {}
+    current = None
+    search_path = b"SELECT pg_catalog.set_config('search_path', '', false);"
+    with gzip.open(path, 'rb') as source, sql_output.open('wb') as sql:
+        for line in source:
+            sql.write(line.replace(search_path, b"SELECT pg_catalog.set_config('search_path', 'public, pg_catalog', true);"))
+            if current is not None:
+                if line.rstrip(b'\r\n') == b'\\.':
+                    current = None
+                    continue
+                entry = tables[current]
+                values = line.rstrip(b'\r\n').split(b'\t')
+                if len(values) != len(entry['columns']):
+                    raise DrillError('Malformed COPY row')
+                entry['rows'][row_digest(line)] += 1
+                if current in PROJECTIONS:
+                    chosen = [values[entry['columns'].index(c)] for c in PROJECTIONS[current]]
+                    entry['projection'][projected_row(current, chosen)] += 1
+                    entry['projection_3_3_5'][projected_row(current, chosen, '3.3.5')] += 1
+                continue
+            match = COPY.match(line)
+            if match:
+                current = identifier(match[1].decode())
+                columns = [identifier(c) for c in match[2].decode().split(', ')]
+                if current in tables:
+                    raise DrillError('Duplicate COPY section')
+                if current in PROJECTIONS and not set(PROJECTIONS[current]) <= set(columns):
+                    raise DrillError('Required metadata columns absent from dump')
+                tables[current] = {'columns': columns, 'rows': Counter(), 'projection': Counter(),
+                                   'projection_3_3_5': Counter()}
+            elif line.startswith(b'COPY '):
+                raise DrillError('Unsupported COPY layout; inspect privately before restoring')
+    if current is not None or not set(PROJECTIONS) <= set(tables):
+        raise DrillError('Incomplete database dump')
+    return tables
+
+
+def find_backup(root):
+    dumps = [p for p in root.rglob('immich-postgres.sql.gz') if p.is_file()]
+    if len(dumps) != 1:
+        raise DrillError('Expected exactly one database dump in snapshot')
+    dump = dumps[0]
+    library = dump.parent.parent / 'library'
+    for path in [dump, library]:
+        if path.is_symlink() or root.resolve() not in path.resolve().parents:
+            raise DrillError('Backup path escapes isolated restore')
+    if not library.is_dir():
+        raise DrillError('Snapshot is missing its complete media library')
+    return dump, library
+
+
+def original_path(library, container_path):
+    path = Path(container_path)
+    if not path.is_absolute() or not str(path).startswith('/data/'):
+        raise DrillError('Unsupported/external original path')
+    result = library / path.relative_to('/data')
+    if library.resolve() not in result.resolve().parents or not result.is_file():
+        raise DrillError('Missing original or path outside copied media')
+    return result
+
+
+def verify_original(library, asset):
+    if asset['isExternal']:
+        raise DrillError('External-library recovery needs a separately reviewed mount plan')
+    algorithm = asset['algorithm']
+    if algorithm not in ('sha1', 'sha256'):
+        raise DrillError('Unsupported original checksum algorithm')
+    digest = hashlib.new(algorithm)
+    with original_path(library, asset['path']).open('rb') as source:
+        for block in iter(lambda: source.read(1024 * 1024), b''):
+            digest.update(block)
+    if digest.hexdigest() != asset['checksum']:
+        raise DrillError('Original media checksum mismatch')
+
+
+def images(path):
+    value = json.loads(path.read_text())
+    repos = {'server': 'ghcr.io/immich-app/immich-server',
+             'machine_learning': 'ghcr.io/immich-app/immich-machine-learning',
+             'postgres': 'ghcr.io/immich-app/postgres', 'valkey': 'docker.io/valkey/valkey'}
+    if not re.fullmatch(r'\d+\.\d+\.\d+', value.get('version', '')):
+        raise DrillError('Image inventory needs an explicit application version')
+    for name, repo in repos.items():
+        if not re.fullmatch(re.escape(repo) + r'(?::[A-Za-z0-9._-]+)?@sha256:[0-9a-f]{64}', value.get(name, '')):
+            raise DrillError('Image inventory must use the reviewed repositories and immutable digests')
+    if not isinstance(value.get('extensions'), dict) or not value['extensions']:
+        raise DrillError('Image inventory must record the production database extensions')
+    return value
+
+
+def assert_equal(expected, actual, category):
+    if expected != actual:
+        raise DrillError(category + ' does not match snapshot baseline')
+
+
+def run(command, log, capture=False, env=None, input_file=None):
+    result = subprocess.run(command, stdin=input_file, stdout=subprocess.PIPE if capture else log,
+                            stderr=log, env=env)
+    if result.returncode:
+        raise DrillError('Command failed; inspect private command log')
+    return result.stdout if capture else None
+
+
+def wait_for(check, attempts=120):
+    for _ in range(attempts):
+        if check():
+            return
+        time.sleep(5)
+    raise DrillError('Isolated service did not become ready; inspect protected logs')
+
+
+class Stack:
+    def __init__(self, directory, inventory, sql, baseline, library, log):
+        self.directory, self.inventory, self.sql = directory, inventory, sql
+        self.baseline, self.library, self.log = baseline, library, log
+        self.prefix = 'immich-drill-' + uuid.uuid4().hex[:12]
+        self.network = self.prefix + '-net'
+        self.started = []
+        self.network_created = False
+
+    def name(self, role):
+        return self.prefix + '-' + role
+
+    def start(self, role, options, image, arguments=()):
+        self.started.append(role)
+        run(['docker', 'run', '--detach', '--pull', 'never', '--name', self.name(role),
+             '--label', 'homelab.restore-drill=immich', '--network', self.network,
+             '--restart', 'no', '--pids-limit', '512', '--security-opt', 'no-new-privileges',
+             *options, image, *arguments], self.log)
+
+    def query(self, sql):
+        return run(['docker', 'exec', self.name('postgres'), 'psql', '-X', '-q', '-A', '-t', '-U', 'postgres', '-d', 'immich',
+                    '--set', 'ON_ERROR_STOP=on', '-c', sql], self.log, capture=True)
+
+    def ready(self, role, command):
+        def check():
+            state = run(['docker', 'inspect', self.name(role), '--format', '{{.State.Running}}'], self.log, capture=True)
+            if state.strip() != b'true':
+                raise DrillError('Isolated service exited before readiness')
+            return subprocess.run(['docker', 'exec', self.name(role), *command], stdout=self.log, stderr=self.log).returncode == 0
+        wait_for(check)
+
+    def compare(self, projected=False):
+        report = {}
+        for table, baseline in self.baseline.items():
+            if projected and table not in PROJECTIONS:
+                continue
+            columns = PROJECTIONS[table] if projected else baseline['columns']
+            sql = 'SET TIME ZONE \'UTC\'; SET DateStyle = \'ISO\'; SET extra_float_digits=3; COPY public.' + quoted(table)
+            sql += ' (' + ','.join(quoted(c) for c in columns) + ') TO STDOUT;'
+            rows = self.query(sql).splitlines()
+            actual = Counter(row_digest(row) for row in rows)
+            expected = baseline['projection'] if projected else baseline['rows']
+            if projected and self.inventory['version'] == '3.3.5':
+                expected = baseline['projection_3_3_5']
+            report[table] = {'expected': sum(expected.values()), 'actual': sum(actual.values()), 'matched': expected == actual}
+            if expected != actual:
+                (self.directory / 'content-report.json').write_text(json.dumps(report, indent=2))
+                raise DrillError('Restored database content mismatch; inspect protected aggregate report')
+        (self.directory / ('metadata-report.json' if projected else 'content-report.json')).write_text(json.dumps(report, indent=2))
+        print(('Application metadata' if projected else 'Dump COPY rows') + ': PASS; tables=' + str(len(report)), flush=True)
+
+    def execute(self):
+        print('Starting isolated PostgreSQL and restoring SQL with ON_ERROR_STOP', flush=True)
+        run(['docker', 'network', 'create', '--internal', '--label', 'homelab.restore-drill=immich', self.network], self.log)
+        self.network_created = True
+        password = secrets.token_urlsafe(32)
+        env_file = self.directory / 'database.env'
+        env_file.write_text('POSTGRES_USER=postgres\nPOSTGRES_DB=immich\nPOSTGRES_PASSWORD=' + password + '\nPOSTGRES_INITDB_ARGS=--data-checksums\n')
+        database = self.directory / 'postgres'
+        database.mkdir(mode=0o700)
+        self.start('postgres', ['--cpus', '1', '--memory', '2g', '--memory-swap', '2g', '--shm-size', '128m',
+                              '--env-file', str(env_file), '--mount', f'type=bind,src={database},dst=/var/lib/postgresql/data'],
+                   self.inventory['postgres'])
+        self.ready('postgres', ['pg_isready', '-h', '127.0.0.1', '-U', 'postgres', '-d', 'immich'])
+        with self.sql.open('rb') as source:
+            run(['docker', 'exec', '-i', self.name('postgres'), 'psql', '-X', '-U', 'postgres', '-d', 'immich',
+                 '--single-transaction', '--set', 'ON_ERROR_STOP=on'], self.log, input_file=source)
+        self.compare()
+        extensions = dict(line.split('\t') for line in self.query('COPY (SELECT extname, extversion FROM pg_extension ORDER BY extname) TO STDOUT;').decode().splitlines())
+        assert_equal(self.inventory['extensions'], extensions, 'Database extensions')
+        print('Checking every active original against its recorded checksum', flush=True)
+        assets = json.loads(self.query('SELECT coalesce(json_agg(json_build_object(\'path\', "originalPath", \'checksum\', encode(checksum,\'hex\'), \'algorithm\', "checksumAlgorithm"::text, \'isExternal\', "isExternal")),\'[]\'::json) FROM public.asset WHERE "deletedAt" IS NULL;'))
+        for asset in assets:
+            verify_original(self.library, asset)
+        print('Original checksums: PASS; assets=' + str(len(assets)), flush=True)
+        self.start('valkey', ['--cpus', '0.25', '--memory', '256m', '--memory-swap', '256m'], self.inventory['valkey'])
+        self.ready('valkey', ['valkey-cli', 'ping'])
+        runtime = self.directory / 'library'
+        for path in self.library.rglob('*'):
+            if path.is_symlink():
+                raise DrillError('Symlinked media needs a separate reviewed recovery mapping')
+        print('Copying verified media into writable isolated application state', flush=True)
+        run(['cp', '-r', '--no-preserve=ownership', '--reflink=auto', str(self.library), str(runtime)], self.log)
+        server_env = self.directory / 'server.env'
+        server_env.write_text('DB_HOSTNAME=' + self.name('postgres') + '\nDB_PORT=5432\nDB_USERNAME=postgres\nDB_DATABASE_NAME=immich\nDB_PASSWORD=' + password +
+                              '\nREDIS_HOSTNAME=' + self.name('valkey') + '\nREDIS_PORT=6379\nIMMICH_WORKERS_INCLUDE=api\nTZ=Asia/Manila\n')
+        self.start('server', ['--cpus', '2', '--memory', '4g', '--memory-swap', '4g', '--env-file', str(server_env),
+                             '--mount', f'type=bind,src={runtime},dst=/data'], self.inventory['server'])
+        check = ("Promise.all(['ping','config','version'].map(x=>fetch('http://127.0.0.1:2283/api/server/'+x).then(r=>r.json())))"
+                 ".then(([p,c,v])=>{if(p.res!=='pong'||!c.isInitialized||[v.major,v.minor,v.patch].join('.')!=="
+                 + json.dumps(self.inventory['version']) + ")process.exit(1)}).catch(()=>process.exit(1))")
+        self.ready('server', ['node', '-e', check])
+        run(['docker', 'stop', '--time', '30', self.name('server')], self.log)
+        self.compare(projected=True)
+        print('Isolated Immich ' + self.inventory['version'] + ' startup and metadata: PASS', flush=True)
+        ml_cache = self.directory / 'ml-cache'
+        ml_cache.mkdir(mode=0o700)
+        self.start('machine-learning', ['--cpus', '0.75', '--memory', '2g', '--memory-swap', '2g',
+                                        '--mount', f'type=bind,src={ml_cache},dst=/cache'], self.inventory['machine_learning'])
+        self.ready('machine-learning', ['python', '-c', "import urllib.request; assert urllib.request.urlopen('http://127.0.0.1:3003/ping',timeout=5).status==200"])
+        print('Isolated ML startup: PASS (model inference/downloads are not exercised)', flush=True)
+
+    def cleanup(self):
+        failed = False
+        for role in reversed(self.started):
+            with (self.directory / (role + '.log')).open('wb') as output:
+                subprocess.run(['docker', 'logs', self.name(role)], stdout=output, stderr=output)
+            state = subprocess.run(['docker', 'inspect', self.name(role), '--format', '{{.State.Running}}'], stdout=subprocess.PIPE, stderr=self.log)
+            if state.returncode == 0 and state.stdout.strip() == b'true':
+                if subprocess.run(['docker', 'stop', '--time', '30', self.name(role)], stdout=self.log, stderr=self.log).returncode:
+                    failed = True
+        # Keep stopped containers/network for diagnostics. Never auto-delete data.
+        if failed:
+            raise DrillError('Could not stop all isolated services; inspect only this attempt before proceeding')
+
+
+def main():
+    os.umask(0o077)
+    def interrupted(signum, frame):
+        raise DrillError('Drill interrupted')
+    signal.signal(signal.SIGINT, interrupted)
+    signal.signal(signal.SIGTERM, interrupted)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('snapshot')
+    parser.add_argument('--images', type=Path, required=True)
+    parser.add_argument('--resume', type=Path)
+    parser.add_argument('--target-images', type=Path, help='optional separate-copy upgrade rehearsal')
+    args = parser.parse_args()
+    try:
+        if os.geteuid() != 0:
+            raise DrillError('Run with interactive sudo on krof-desktop')
+        if not re.fullmatch('[0-9a-f]{8,64}', args.snapshot):
+            raise DrillError('Use an explicit snapshot ID')
+        inventory = images(args.images)
+        target = images(args.target_images) if args.target_images else None
+        if target and any(target[k] != inventory[k] for k in ['postgres', 'valkey', 'extensions']):
+            raise DrillError('Database/cache changes are outside this rehearsal')
+        if int(re.search(r'^MemAvailable:\s+(\d+)', Path('/proc/meminfo').read_text(), re.M)[1]) < 12 * 1024 * 1024:
+            raise DrillError('Need twelve GiB available memory; retry during an idle desktop window')
+        for mount, expected in [('/mnt/backup', '3180031e-abd5-4d6a-8aac-abe3e41dc950'), ('/mnt/data-drive-2tb', 'cb3505ce-970c-49c2-ad50-4bc07ddbe508')]:
+            value = subprocess.run(['findmnt', '-rn', '-M', mount, '-o', 'UUID,FSTYPE'], capture_output=True, text=True)
+            if value.returncode or value.stdout.split() != [expected, 'ext4']:
+                raise DrillError('Storage identity verification failed')
+        if args.resume:
+            directory = args.resume
+            if (not re.fullmatch(r'/mnt/backup/immich-restore-drill\.[A-Za-z0-9_-]+', str(directory))
+                    or directory.resolve() != directory or directory.stat().st_uid != 0 or directory.stat().st_mode & 0o077):
+                raise DrillError('Unsafe resume directory')
+            if json.loads((directory / 'drill.json').read_text()) != {'snapshot': args.snapshot, 'images': inventory}:
+                raise DrillError('Resume metadata does not match')
+        else:
+            directory = Path(tempfile.mkdtemp(prefix='immich-restore-drill.', dir='/mnt/backup'))
+            (directory / 'drill.json').write_text(json.dumps({'snapshot': args.snapshot, 'images': inventory}))
+        restored = directory / 'restored'
+        if restored.is_symlink():
+            raise DrillError('Unsafe restore target')
+        attempt = Path(tempfile.mkdtemp(prefix='attempt.', dir=directory))
+        print('Protected drill artifacts: ' + str(attempt), flush=True)
+        env = dict(os.environ, RESTIC_REPOSITORY='/mnt/backup/homelab/immich/repository', RESTIC_PASSWORD_FILE='/etc/restic/immich-password')
+        with (attempt / 'commands.log').open('wb') as log:
+            snapshots = json.loads(run(['restic', 'snapshots', '--json', args.snapshot], log, capture=True, env=env))
+            if len(snapshots) != 1 or snapshots[0]['hostname'] != 'krof-desktop' or 'immich' not in snapshots[0].get('tags', []):
+                raise DrillError('Snapshot must belong to Immich on this host')
+            stats = json.loads(run(['restic', 'stats', args.snapshot, '--mode', 'restore-size', '--json'], log, capture=True, env=env))
+            if shutil.disk_usage('/mnt/backup').free < 3 * stats['total_size'] + 10 * 1024**3:
+                raise DrillError('Insufficient space for verified restore and isolated copies')
+            print('Preparing digest-pinned Docker images; progress is retained in commands.log', flush=True)
+            for image in set(data[k] for data in [inventory, target] if data for k in ['server', 'postgres', 'valkey', 'machine_learning']):
+                run(['docker', 'pull', image], log)
+            print('Restoring and verifying the full snapshot (including all media)', flush=True)
+            run(['restic', 'restore', args.snapshot, '--target', str(restored), '--verify'], log, env=env)
+            dump, library = find_backup(restored)
+            sql = attempt / 'database.sql'
+            baseline = dump_baseline(dump, sql)
+            print('Full Restic restore and gzip/COPY validation: PASS', flush=True)
+            for name, data in [('baseline', inventory), ('upgrade', target)]:
+                if not data:
+                    continue
+                phase = attempt / name
+                phase.mkdir(mode=0o700)
+                stack = Stack(phase, data, sql, baseline, library, log)
+                try:
+                    stack.execute()
+                finally:
+                    stack.cleanup()
+        print('PASS: requested isolated phases completed; production unchanged; stopped test services/artifacts retained')
+    except DrillError as error:
+        print('FAIL: ' + str(error) + '; do not upgrade production', file=sys.stderr)
+        return 1
+    except (OSError, ValueError, KeyError, gzip.BadGzipFile, EOFError):
+        print('FAIL: recovery/rehearsal did not pass; inspect protected artifacts; do not upgrade production', file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

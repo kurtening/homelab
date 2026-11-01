@@ -33,3 +33,6 @@ jobs:
 
       - name: Check Jellyfin recovery tooling
         run: python3 scripts/test-jellyfin-recovery.py
+
+      - name: Check Immich recovery tooling
+        run: python3 scripts/test-immich-recovery.py
