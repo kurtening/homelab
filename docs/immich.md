@@ -1,9 +1,10 @@
 # Immich recovery and upgrade operations
 
-Immich currently runs server and machine learning v3.1.0 on the single-node
-K3s cluster. Production upgrade to v3.3.5 is gated on a full isolated restore
-and migration rehearsal, followed by a reviewed GitOps change. No production
-image or storage change is included in the recovery tooling PR.
+The manifests pin server and machine learning v3.3.5 on the single-node K3s
+cluster. Full isolated recovery and a v3.1.0-to-v3.3.5 rehearsal passed before
+the image PR merged. Argo reconciled the new images before the coordinated
+write pause; no final quiesced pre-upgrade checkpoint was recorded. Production
+acceptance and a verified post-upgrade checkpoint remain separate gates.
 
 ## Backup boundary
 
@@ -13,6 +14,25 @@ under `/mnt/data-drive-2tb/homelab/immich` into the dedicated Restic repository
 `/mnt/backup/homelab/immich/repository`. Its password is
 `/etc/restic/immich-password`, separate from Jellyfin and the SOPS age identity.
 Verify an independent password recovery copy without displaying it in chat.
+
+The tracked script compresses inside the PostgreSQL container before streaming
+through `kubectl exec`. The database image must provide Bash and gzip; both
+were checked on the pinned production image. Remote `pipefail` propagates a
+`pg_dump` failure even if gzip succeeds. The host checks stream exit status,
+nonempty output and gzip integrity before replacing the previous dump. A
+failed transfer is discarded and does not proceed to Restic.
+
+This avoids slow host-side gzip backpressure, implicated in the upstream
+[exec-output truncation issue](https://github.com/kubernetes/kubernetes/issues/142376).
+The two November 1 maintenance attempts reset during dump streaming before
+Restic started. An in-container compression probe passed; that is not a backup
+or repository-check PASS. Do not suppress streaming errors or switch protocols
+to obtain a nominal success, since silent truncation is also reported.
+
+Merging this change does not update the installed host script. Inspect and
+install the reviewed script explicitly before retrying the host service; keep
+the previous installed script for rollback. Existing repositories, passwords,
+systemd hardening, retention and mount/device checks remain unchanged.
 
 The timer runs at 03:00 host local time (currently Asia/Manila). A successful
 backup or `restic check` is not application recovery proof. The database dump
@@ -225,11 +245,13 @@ Record these gates separately:
 | Scheduled backup and repository check | November 1 host job reported success |
 | Full file/database/media recovery | Operator-run baseline passed: all 66 dump tables, 5,455 active original checksums, five core metadata tables, v3.1.0 startup and ML startup |
 | v3.3.5 isolated migration rehearsal | Operator-run corrected rehearsal passed: migrations, all 66 restored dump tables, 5,455 active original checksums, five core metadata tables, initialized startup, and separate ML startup; no inference/playback claim |
-| Production upgrade acceptance | Not started; still v3.1.0 |
-| Post-upgrade backup | Not applicable yet |
+| Production upgrade acceptance | Argo deployed v3.3.5 and reported healthy before maintenance; user-facing acceptance still pending |
+| Final quiesced pre-upgrade checkpoint | Not recorded before automatic reconciliation; the earlier restore-tested snapshot is not an equivalent final checkpoint |
+| Post-upgrade backup | Pending; two host attempts failed during dump streaming; corrected compression probe only passed |
 | Independent Immich Restic password recovery | Operator confirmed November 1: independent vault copy unlocked the Immich repository using the hidden-prompt verifier; PostgreSQL password remains separate |
 
-Run synthetic coverage with `python3 scripts/test-immich-recovery.py`. CI does
+Run synthetic coverage with `python3 scripts/test-immich-recovery.py` and
+`python3 scripts/test-immich-backup.py`. CI does
 not receive production credentials or media. Off-machine protection and full
 host-loss recovery remain separate work.
 

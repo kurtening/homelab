@@ -36,3 +36,6 @@ jobs:
 
       - name: Check Immich recovery tooling
         run: python3 scripts/test-immich-recovery.py
+
+      - name: Check Immich backup dump pipeline
+        run: python3 scripts/test-immich-backup.py

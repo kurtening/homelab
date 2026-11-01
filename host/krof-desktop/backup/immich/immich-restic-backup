@@ -46,6 +46,34 @@ cleanup() {
 
 trap cleanup EXIT
 
+create_database_dump() {
+  DUMP_TEMP_PATH="$(
+    mktemp "${DATABASE_DUMPS_PATH}/.immich-postgres.sql.gz.tmp.XXXXXX"
+  )"
+
+  # Compress before crossing the exec stream. Host-side gzip is a slow reader
+  # and can trigger Kubernetes exec output truncation/reset on command exit.
+  # Remote pipefail is essential: a successful gzip must not mask pg_dump.
+  "${K3S_BIN}" kubectl \
+    --namespace "${POSTGRES_NAMESPACE}" \
+    exec "${POSTGRES_POD}" \
+    --container "${POSTGRES_CONTAINER}" \
+    -- bash -o pipefail -c \
+    'pg_dump --clean --if-exists --dbname="$1" --username="$2" | gzip -9' \
+    immich-backup "${POSTGRES_DATABASE}" "${POSTGRES_USER}" \
+    >"${DUMP_TEMP_PATH}"
+
+  [[ -s "${DUMP_TEMP_PATH}" ]] ||
+    die "PostgreSQL dump is empty"
+
+  gzip --test "${DUMP_TEMP_PATH}" ||
+    die "PostgreSQL dump failed gzip validation"
+
+  mv -- "${DUMP_TEMP_PATH}" "${DATABASE_DUMP_PATH}"
+  DUMP_TEMP_PATH=""
+  chmod 0600 "${DATABASE_DUMP_PATH}"
+}
+
 verify_mount() {
   local mount_path="$1"
   local expected_uuid="$2"
@@ -107,34 +135,8 @@ log "Waiting for PostgreSQL"
   "pod/${POSTGRES_POD}" \
   --timeout=10m
 
-DUMP_TEMP_PATH="$(
-  mktemp "${DATABASE_DUMPS_PATH}/.immich-postgres.sql.gz.tmp.XXXXXX"
-)"
-
 log "Creating fresh PostgreSQL dump"
-
-"${K3S_BIN}" kubectl \
-  --namespace "${POSTGRES_NAMESPACE}" \
-  exec "${POSTGRES_POD}" \
-  --container "${POSTGRES_CONTAINER}" \
-  -- \
-  pg_dump \
-    --clean \
-    --if-exists \
-    --dbname="${POSTGRES_DATABASE}" \
-    --username="${POSTGRES_USER}" |
-  gzip -9 >"${DUMP_TEMP_PATH}"
-
-[[ -s "${DUMP_TEMP_PATH}" ]] ||
-  die "PostgreSQL dump is empty"
-
-gzip --test "${DUMP_TEMP_PATH}" ||
-  die "PostgreSQL dump failed gzip validation"
-
-mv -- "${DUMP_TEMP_PATH}" "${DATABASE_DUMP_PATH}"
-DUMP_TEMP_PATH=""
-
-chmod 0600 "${DATABASE_DUMP_PATH}"
+create_database_dump
 
 log "Fresh PostgreSQL dump created: ${DATABASE_DUMP_PATH}"
 
