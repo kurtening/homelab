@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+"""Root-only, read-only rebuild metadata. Never emit credentials or IP/DNS values."""
+import json
+import os
+from pathlib import Path
+import re
+import socket
+import subprocess
+import sys
+import yaml
+
+
+def run(args):
+    result = subprocess.run(args, capture_output=True, text=True, timeout=15, check=False)
+    if result.returncode:
+        raise RuntimeError
+    return result.stdout.strip()
+
+
+def safe_settings(configuration):
+    result = {}
+    if 'flannel-iface' in configuration:
+        result['flannel-iface'] = 'tailscale0' if configuration['flannel-iface'] == 'tailscale0' else 'other-interface'
+    if 'flannel-backend' in configuration:
+        value = configuration['flannel-backend']
+        result['flannel-backend'] = value if value in ('vxlan', 'wireguard-native', 'none') else 'other'
+    if 'disable' in configuration:
+        values = configuration['disable']
+        values = values if isinstance(values, list) else str(values).split(',')
+        allowed = {'traefik', 'servicelb', 'metrics-server', 'local-storage', 'coredns', 'network-policy'}
+        result['disable'] = sorted(value if value in allowed else 'other-component' for value in values)
+    if 'secrets-encryption' in configuration:
+        result['secrets-encryption'] = str(configuration['secrets-encryption']).lower() == 'true'
+    result['private_network_settings_present'] = any(key in configuration for key in
+        ('node-ip', 'node-external-ip', 'advertise-address', 'tls-san', 'cluster-cidr', 'service-cidr'))
+    return result
+
+
+def main():
+    if os.geteuid() != 0 or socket.gethostname().split('.')[0] != 'krof-desktop':
+        raise RuntimeError
+    pid = int(run(['systemctl', 'show', 'k3s.service', '-p', 'MainPID', '--value']))
+    if pid <= 0:
+        raise RuntimeError
+    arguments = Path(f'/proc/{pid}/cmdline').read_bytes().decode().split('\0')
+    environment = dict(entry.split('=', 1) for entry in Path(f'/proc/{pid}/environ').read_bytes().decode().split('\0') if '=' in entry)
+    def argument(name, default=None):
+        values = []
+        for index, entry in enumerate(arguments):
+            if entry.startswith('--' + name + '='):
+                values.append(entry.split('=', 1)[1])
+            if entry == '--' + name:
+                following = arguments[index + 1] if index + 1 < len(arguments) else ''
+                if not following or following.startswith('--'):
+                    if name != 'secrets-encryption':
+                        raise RuntimeError
+                    following = 'true'
+                values.append(following)
+        return (','.join(values) if name == 'disable' else values[-1]) if values else default
+    config_path = Path(argument('config', environment.get('K3S_CONFIG_FILE', '/etc/rancher/k3s/config.yaml')))
+    if config_path != Path('/etc/rancher/k3s/config.yaml'):
+        raise RuntimeError  # Custom configuration needs a separate protected review.
+    files = ([config_path] if config_path.exists() else []) + sorted(Path(str(config_path) + '.d').glob('*.yaml'))
+    configuration = {}
+    for path in files:
+        data = yaml.safe_load(path.read_text()) or {}
+        if not isinstance(data, dict):
+            raise RuntimeError
+        for key, value in data.items():
+            if key.endswith('+'):
+                base = key[:-1]
+                previous = configuration.get(base, [] if isinstance(value, list) else '')
+                configuration[base] = previous + value
+            else:
+                configuration[key] = value
+    safe_keys = ('flannel-iface', 'flannel-backend', 'disable', 'secrets-encryption',
+                 'node-ip', 'node-external-ip', 'advertise-address', 'tls-san',
+                 'cluster-cidr', 'service-cidr', 'data-dir', 'datastore-endpoint')
+    for key in safe_keys:
+        name = 'K3S_' + key.upper().replace('-', '_')
+        if name in environment:
+            configuration[key] = environment[name]
+        value = argument(key)
+        if value is not None:
+            configuration[key] = value
+    data_dir = Path(configuration.get('data-dir', '/var/lib/rancher/k3s'))
+    if data_dir != Path('/var/lib/rancher/k3s'):
+        raise RuntimeError
+    database = data_dir / 'server/db'
+    external = bool(configuration.get('datastore-endpoint'))
+    sqlite = (database / 'state.db').is_file()
+    etcd = (database / 'etcd/member').is_dir()
+    datastore = 'external' if external else 'sqlite' if sqlite and not etcd else 'etcd' if etcd and not sqlite else 'unverified'
+    version = re.search(r'v[0-9]+\.[0-9]+\.[0-9]+\+k3s[0-9]+', run(['/usr/local/bin/k3s', '--version']))
+    restic = re.search(r'^restic ([0-9]+\.[0-9]+\.[0-9]+)', run(['restic', 'version']))
+    result = {'schema_version': 1, 'k3s_version': version.group() if version else 'unverified',
+              'datastore': datastore, 'standard_data_directory': True,
+              'configuration_file_count': len(files),
+              'effective_allowlisted_settings': safe_settings(configuration),
+              'server_token_file_present': (data_dir / 'server/token').is_file(),
+              'restic_version': restic[1] if restic else 'unverified'}
+    print(json.dumps(result, indent=2))
+    print('PASS: allowlisted rebuild metadata only; no private values emitted or server token contents opened', file=sys.stderr)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError, subprocess.SubprocessError, yaml.YAMLError):
+        print('PENDING: protected rebuild inventory unavailable; inspect locally without displaying raw configuration', file=sys.stderr)
+        sys.exit(2)

@@ -80,7 +80,7 @@ The declared configuration assumes that an operator has already provided:
 - network access to GitHub, the Tailscale Helm repository, the remote Argo CD manifest, and validation schema catalogs
 - Azure and GitHub authentication when planning or applying repository-governance infrastructure
 
-These prerequisites are not automated here. This is a dependency boundary, not a tested cold-start runbook. During bootstrap or recovery, verify live storage and credentials before allowing the root Application to reconcile dependent workloads.
+These prerequisites are not automated here. This is a dependency boundary, not a tested cold-start runbook. During bootstrap or recovery, verify live storage and credentials before allowing the root Application to reconcile dependent workloads. The ordered [rebuild blueprint](rebuild.md) records the verified host/datastore baseline, protected recovery dependencies and gates; a full rebuild drill remains pending.
 
 ## Networking and ingress
 
