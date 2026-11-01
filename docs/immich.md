@@ -143,8 +143,10 @@ empty album descriptions become SQL `NULL`. Only the expected v3.3.5 baseline
 is transformed; actual rows are not normalized. Nonempty descriptions and all
 other selected fields must still match exactly. The initial rehearsal stopped
 on this representation change; isolated database comparison confirmed it was
-the only difference across the five checked metadata tables. A full corrected
-rehearsal remains required, including target machine-learning startup.
+the only difference across the five checked metadata tables. The corrected
+full rehearsal subsequently passed for both versions, including separate
+machine-learning startup checks. This does not exercise ML inference or model
+downloads, authenticated browsing, original downloads, or video playback.
 
 Publish the paired application-image change as a separate draft PR only after
 the live isolated rehearsal passes. Review intervening release notes and mobile
@@ -199,10 +201,10 @@ Record these gates separately:
 | --- | --- |
 | Scheduled backup and repository check | November 1 host job reported success |
 | Full file/database/media recovery | Operator-run baseline passed: all 66 dump tables, 5,455 active original checksums, five core metadata tables, v3.1.0 startup and ML startup |
-| v3.3.5 isolated migration rehearsal | Migrations/startup reached metadata comparison; stopped on reviewed empty-description-to-NULL migration; corrected full rerun pending |
+| v3.3.5 isolated migration rehearsal | Operator-run corrected rehearsal passed: migrations, all 66 restored dump tables, 5,455 active original checksums, five core metadata tables, initialized startup, and separate ML startup; no inference/playback claim |
 | Production upgrade acceptance | Not started; still v3.1.0 |
 | Post-upgrade backup | Not applicable yet |
-| Independent Immich Restic password recovery | Awaiting operator confirmation |
+| Independent Immich Restic password recovery | Pending verification of the dedicated backup password; the PostgreSQL password is a separate credential |
 
 Run synthetic coverage with `python3 scripts/test-immich-recovery.py`. CI does
 not receive production credentials or media. Off-machine protection and full
