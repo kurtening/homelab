@@ -192,10 +192,12 @@ The Restic repository is stored under `/mnt/backup/homelab/immich/repository`. I
 The database dump is consistent when created, but Immich remains available while Restic reads the library. The database dump and media snapshot are therefore not guaranteed to represent one atomic point in time.
 
 Minecraft's tracked host-level Restic job is scheduled for 05:30 Asia/Manila.
-The November 1, 2026 host preflight found its repository/password usable but no
-matching snapshots and no installed job. Installation, first verified backup,
-independent credential custody and timer activation remain separate acceptance
-steps; tracked assets alone do not provide coverage. See `docs/minecraft.md`.
+The November 1, 2026 preflight initially found no installed job or matching
+snapshots. The operator subsequently installed it, reported successful manual
+snapshot `71a80f59`, verified isolated file recovery/world metadata and independent
+password custody, then enabled the timer. Genuine scheduled execution and server
+startup/gameplay recovery remain unverified. See `docs/minecraft.md` and
+`docs/operations.md`; tracked assets alone do not provide coverage.
 It validates the same two storage devices, uses in-container RCON to suspend and
 flush world saves, snapshots the full Minecraft data directory, resumes saves,
 applies the same 7-daily/4-weekly/6-monthly retention policy, and runs
