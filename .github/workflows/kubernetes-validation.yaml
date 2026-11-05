@@ -28,9 +28,6 @@ jobs:
       - name: Render and validate manifests
         run: ./scripts/validate-kubernetes.sh
 
-      - name: Require provisioned Minecraft Discord webhook
-        run: python3 scripts/minecraft/check-discord-credential-gate.py
-
       - name: Check Jellyfin backup archive gate
         run: bash scripts/test-jellyfin-backup.sh
 
@@ -63,3 +60,6 @@ jobs:
 
       - name: Check rebuild inventory redaction
         run: /tmp/monitoring-tests/bin/python scripts/test-rebuild-inventory.py
+
+      - name: Require provisioned Minecraft Discord webhook
+        run: python3 scripts/minecraft/check-discord-credential-gate.py
