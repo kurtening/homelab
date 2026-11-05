@@ -28,6 +28,9 @@ jobs:
       - name: Render and validate manifests
         run: ./scripts/validate-kubernetes.sh
 
+      - name: Require provisioned Minecraft Discord webhook
+        run: python3 scripts/minecraft/check-discord-credential-gate.py
+
       - name: Check Jellyfin backup archive gate
         run: bash scripts/test-jellyfin-backup.sh
 
