@@ -12,6 +12,7 @@ resources:
   - immich-storage-application.yaml
   - immich-application.yaml
   - minecraft-storage-application.yaml
+  - minecraft-discord-secrets-application.yaml
   - minecraft-application.yaml
   - jellyfin-secrets-application.yaml
   - jellyfin-storage-application.yaml
