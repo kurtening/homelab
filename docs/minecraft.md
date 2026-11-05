@@ -18,6 +18,7 @@ Restic repository, and tailnet access are required runtime dependencies.
 - Tailscale-only TCP access on port `25565`
 - one-player sleep and fast leaf decay
 - native pause after the server has been empty for ten minutes
+- the Excalibur `26.1_01` resource pack is required for all players
 
 The client pack is not installed on the server. The server downloads these
 exact Modrinth releases at startup:
@@ -123,6 +124,20 @@ minecraft.<tailnet>.ts.net:25565
 ```
 
 Use the private tailnet suffix from the Tailscale admin console; never commit it.
+
+On connection, clients download the pinned Excalibur ZIP directly from Modrinth
+and must accept it to join. The configured SHA-1 is for that exact release;
+verify the new ZIP and hash together before updating either. If the download is
+unavailable or rejected, players cannot join until it is available or the pack
+settings are reverted through GitOps. Basic textures work with unmodified Java
+clients; some visual features require compatible client-side mods. Test both
+the documented Fabulously Optimized client and a vanilla client before merging.
+Use an isolated server and world for these tests. Change the Deployment's
+resource-pack revision annotation when updating the pack so Argo CD rolls the
+pod and the container reads the updated ConfigMap.
+The server rollout restarts Minecraft; verify a current backup and arrange a
+quiet window before merging. To roll back, revert the three resource-pack
+settings and wait for Argo CD to reconcile the resulting restart.
 
 ## Operators
 
