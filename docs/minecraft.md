@@ -158,6 +158,32 @@ kubectl --namespace minecraft exec "${minecraft_pod}" \
 
 The RCON port is cluster-internal and is not exposed by a Service.
 
+## Discord player notifications
+
+The Fabric notifier sends join and leave events to a loopback relay; the relay
+alone holds the dedicated Discord webhook. No chat, IP addresses, or server logs
+are forwarded. Delivery is best effort; failures are logged without the URL or
+message. The relay is a separate container, so Discord failures must not stop
+Minecraft. The pinned notifier and Fabric Kotlin require an isolated startup
+and join/leave test before production activation.
+
+**Activation gate:** the encrypted Secret contains a `PENDING` placeholder.
+Do not merge or sync this change until a dedicated channel webhook has been
+created and inserted with `sops edit` using the existing protected age identity
+and a private mode-0700 temporary directory outside the worktree. Never paste
+the URL in chat, shell arguments, Git, or logs. Replace `stringData.webhook`,
+remove the credential-status annotation, validate ciphertext and perform the
+protected render, then verify the Secret Application is healthy before the
+Minecraft rollout. Without the Secret the pod cannot start; an invalid URL makes
+the relay fail and prevents pod readiness. Confirm a current backup, no active
+backup, and a quiet window before merging because the pod restarts.
+
+Verify join and leave with a player and confirm no chat or addresses are sent.
+For rollback, revert the notifier change and verify the downloaded jar is
+removed from the retained mods directory by the image's MODS synchronization;
+test that removal with an isolated volume first. Retain the encrypted Secret
+and separately revoke the Discord webhook if no longer needed.
+
 ## Backup installation and verification
 
 A merge records the backup files but does not install them. Use a reviewed copy
