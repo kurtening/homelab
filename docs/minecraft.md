@@ -181,10 +181,14 @@ the relay fail and prevents pod readiness. Confirm a current backup, no active
 backup, and a quiet window before merging because the pod restarts.
 
 Verify join and leave with a player and confirm no chat or addresses are sent.
-For rollback, revert the notifier change and verify the downloaded jar is
-removed from the retained mods directory by the image's MODS synchronization;
-test that removal with an isolated volume first. Retain the encrypted Secret
-and separately revoke the Discord webhook if no longer needed.
+For rollback, first make a GitOps change setting `MODS: ""` while leaving the
+Kotlin pin and remaining notifier configuration intact. After reconciliation
+and restart, confirm the notifier jar is absent from the retained mods directory
+and the server is healthy. Only then revert the remaining notifier changes.
+Simply deleting the `MODS` setting skips the image's variable-list cleanup and
+can leave the jar behind. Test this two-stage procedure on an isolated volume
+before production use. Retain the encrypted Secret and separately revoke the
+Discord webhook if no longer needed.
 
 ## Backup installation and verification
 
