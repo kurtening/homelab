@@ -29,8 +29,10 @@ exact Modrinth releases at startup:
 | Lithium | `0.24.6` | `fQBdPR1m` |
 | FerriteCore | `9.0.0` | `d5ddUdiB` |
 | Leaves Us In Peace | `1.12.0` | `OZtHERvr` |
+| Fabric Language Kotlin | `1.13.12+kotlin.2.4.0` | `Pd0xrHCw` |
 
-Minecraft, Fabric, the container image, and every mod are intentionally pinned.
+Discord Notifier `0.5.0` is separately pinned to its GitHub release and verified
+by SHA-256 before use. Minecraft, Fabric, the container image, and every mod are intentionally pinned.
 Treat upgrades as reviewed migrations: take a fresh backup, change one version
 set, validate startup and gameplay, and retain the prior pins for rollback.
 
