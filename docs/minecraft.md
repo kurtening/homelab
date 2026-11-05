@@ -198,8 +198,9 @@ an encrypted backup if the database is added to a future backup workflow.
 Restrict access through
 the Tailscale admin console, then add and remove individual accounts inside the
 web console. Confirm each co-admin and an unshared player with separate devices.
-The console image currently uses Node 12; treat it as a privileged legacy service
-and keep it private. Verify its HTTPS, WebSocket, permissions and RCON behavior
+The console image uses Node 12 and its upstream authentication uses salted MD5
+for passwords, which is unsuitable for modern password storage. Treat it as a
+privileged legacy service and keep it private. Verify its HTTPS, WebSocket, permissions and RCON behavior
 on an isolated server before activation. No public port forwarding or Funnel.
 
 Before merge verify a current backup, no running backup and a quiet window. The
