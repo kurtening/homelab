@@ -1,0 +1,183 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: minecraft-rcon
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: minecraft, app.kubernetes.io/component: server}
+  ports:
+    - {name: rcon, port: 25575, targetPort: 25575, protocol: TCP}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: minecraft-server-ingress
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: minecraft, app.kubernetes.io/component: server}
+  policyTypes: [Ingress]
+  ingress:
+    - ports: [{protocol: TCP, port: 25565}]
+    - from:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/name: minecraft-admin}
+      ports: [{protocol: TCP, port: 25575}]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minecraft-admin-proxy
+data:
+  nginx.conf: |
+    worker_processes 1;
+    pid /tmp/nginx.pid;
+    events { worker_connections 128; }
+    http {
+      access_log off;
+      error_log /dev/stderr warn;
+      client_body_temp_path /tmp/client_temp;
+      proxy_temp_path /tmp/proxy_temp;
+      fastcgi_temp_path /tmp/fastcgi_temp;
+      uwsgi_temp_path /tmp/uwsgi_temp;
+      scgi_temp_path /tmp/scgi_temp;
+      server {
+        listen 8080;
+        location /socket {
+          proxy_pass http://127.0.0.1:4327;
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection "upgrade";
+          proxy_read_timeout 3600s;
+        }
+        location / {
+          proxy_pass http://127.0.0.1:4326;
+          proxy_set_header Host $host;
+          proxy_set_header X-Forwarded-Proto https;
+        }
+      }
+    }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minecraft-admin-data
+  annotations: {argocd.argoproj.io/sync-options: "Prune=false,Delete=false"}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests: {storage: 1Gi}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minecraft-admin
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app.kubernetes.io/name: minecraft-admin}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: minecraft-admin}
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector: {kubernetes.io/hostname: krof-desktop}
+      securityContext:
+        fsGroup: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: console
+          image: docker.io/itzg/rcon:0.14.1-1@sha256:4bec01981dc95e14f54c243ced5db23591c67e5a63d474a3f4f8acda72ce5a28
+          env:
+            - {name: RWA_USERNAME, value: admin}
+            - {name: RWA_ADMIN, value: "TRUE"}
+            - {name: RWA_RCON_HOST, value: minecraft-rcon}
+            - {name: RWA_PASSWORD, valueFrom: {secretKeyRef: {name: minecraft-admin-credentials, key: admin-password}}}
+            - {name: RWA_RCON_PASSWORD, valueFrom: {secretKeyRef: {name: minecraft-admin-credentials, key: rcon-password}}}
+            - {name: RWA_WEBSOCKET_URL_SSL, valueFrom: {secretKeyRef: {name: minecraft-admin-credentials, key: websocket-url}}}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 20m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 384Mi}
+          volumeMounts:
+            - {name: database, mountPath: /opt/rcon-web-admin/db}
+        - name: proxy
+          image: docker.io/nginxinc/nginx-unprivileged:1.29-alpine@sha256:0c79d56aee561a1d81c63f00eee5fb5fe29279560cdc55e91425133104c7fbe6
+          ports: [{name: http, containerPort: 8080, protocol: TCP}]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          readinessProbe: {httpGet: {path: /, port: http}, periodSeconds: 10}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 128Mi}
+          volumeMounts:
+            - {name: proxy-config, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf, readOnly: true}
+      volumes:
+        - {name: database, persistentVolumeClaim: {claimName: minecraft-admin-data}}
+        - {name: proxy-config, configMap: {name: minecraft-admin-proxy}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minecraft-admin
+spec:
+  type: ClusterIP
+  selector: {app.kubernetes.io/name: minecraft-admin}
+  ports: [{name: http, port: 8080, targetPort: http}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: minecraft-admin-ingress
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: minecraft-admin}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: tailscale}
+          podSelector:
+            matchLabels: {homelab.kurtening.dev/minecraft-admin-proxy: 'true'}
+      ports: [{protocol: TCP, port: 8080}]
+---
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: minecraft-admin
+spec:
+  statefulSet:
+    pod:
+      labels: {homelab.kurtening.dev/minecraft-admin-proxy: 'true'}
+      tailscaleContainer:
+        resources:
+          requests: {cpu: 10m, memory: 32Mi}
+          limits: {cpu: 100m, memory: 128Mi}
+      tailscaleInitContainer:
+        resources:
+          requests: {cpu: 10m, memory: 16Mi}
+          limits: {cpu: 100m, memory: 32Mi}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minecraft-admin
+  annotations: {tailscale.com/proxy-class: minecraft-admin}
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: minecraft-admin
+      port: {name: http}
+  tls:
+    - hosts: [minecraft-admin]

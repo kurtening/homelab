@@ -156,7 +156,58 @@ kubectl --namespace minecraft exec "${minecraft_pod}" \
   --container minecraft -- rcon-cli op OPERATOR_NAME
 ```
 
-The RCON port is cluster-internal and is not exposed by a Service.
+The RCON port is exposed only through the cluster-internal admin Service.
+
+## Private administration console
+
+The proposed console uses its own Tailscale HTTPS endpoint and individual
+accounts. Its RCON Service is internal, and NetworkPolicies restrict access to
+the Minecraft pod and console proxy. Tailscale policy is external: explicitly
+grant the console device only to the owner and selected co-admins. Sharing the
+game device does not itself share this console. Verify policies on live K3s;
+the presence of a NetworkPolicy manifest does not prove enforcement.
+
+**Do not merge before provisioning and testing.** The committed encrypted
+admin Secret contains only `PENDING` placeholders. From a private terminal on
+the administration laptop, generate and save a separate console password in
+the password vault. Set `SOPS_AGE_KEY_FILE` to the existing protected identity,
+verify the active kube context and Minecraft health, then run:
+
+```bash
+mise exec -- python3 scripts/minecraft/create-admin-secret.py
+mise exec -- python3 scripts/minecraft/create-admin-secret.py --verify
+```
+
+The helper refuses to replace non-placeholder credentials, captures the current
+RCON password privately, prompts twice without echoing for the console password,
+and derives the console WebSocket URL,
+encrypts them, and checks the password against the running server. It does not
+display values. Review and commit only the encrypted file. Run `--verify`
+again immediately before merge; a server restart changes its current generated
+password. If verification fails, do not merge. Run the helper with
+`--refresh-rcon`, then `--verify`; this retains the console password and captures
+the current RCON value. Review and commit the new ciphertext before merging.
+Never print credentials, pass them in shell arguments or paste them into chat.
+
+The console has a retained local-path PVC for accounts; it is not covered by
+the Minecraft world backup. Independently protect the admin credential and plan
+to recreate co-admin accounts if this database is lost. Restrict access through
+the host filesystem: the console database may contain RCON credentials and
+account information, and must not be copied into this public repository. Use
+an encrypted backup if the database is added to a future backup workflow.
+Restrict access through
+the Tailscale admin console, then add and remove individual accounts inside the
+web console. Confirm each co-admin and an unshared player with separate devices.
+The console image uses Node 12 and its upstream authentication uses salted MD5
+for passwords, which is unsuitable for modern password storage. Treat it as a
+privileged legacy service and keep it private. Verify its HTTPS, WebSocket, permissions and RCON behavior
+on an isolated server before activation. No public port forwarding or Funnel.
+
+Before merge verify a current backup, no running backup and a quiet window. The
+server restart switches from an automatically generated RCON password to the
+captured stable value; verify `rcon-cli` and backup save coordination afterwards.
+Revert the admin change to remove the console and resume generated credentials;
+preserve the retained console PVC and encrypted Secret until separately reviewed.
 
 ## Backup installation and verification
 
