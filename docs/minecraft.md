@@ -186,9 +186,11 @@ Kotlin pin and remaining notifier configuration intact. After reconciliation
 and restart, confirm the notifier jar is absent from the retained mods directory
 and the server is healthy. Only then revert the remaining notifier changes.
 Simply deleting the `MODS` setting skips the image's variable-list cleanup and
-can leave the jar behind. Test this two-stage procedure on an isolated volume
-before production use. Retain the encrypted Secret and separately revoke the
-Discord webhook if no longer needed.
+can leave the jar behind. A disposable test of the pinned image's `mcopy`
+helper confirmed that an empty list removes its managed jar while leaving an
+unmanaged jar intact. A complete server restart and rollback test remains
+required before production use. Retain the encrypted Secret and separately
+revoke the Discord webhook if no longer needed.
 
 ## Backup installation and verification
 
