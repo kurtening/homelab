@@ -30,6 +30,9 @@ data:
   OVERRIDE_SERVER_PROPERTIES: "true"
   ENABLE_ROLLING_LOGS: "true"
   MOTD: Private Minecraft server
+  RESOURCE_PACK: https://cdn.modrinth.com/data/hJAzl1Bs/versions/ScfKVGaF/Excalibur_V26.1_01.zip
+  RESOURCE_PACK_SHA1: f14f03d76c48e6c99a02ccefff0070c4fe3f110b
+  RESOURCE_PACK_ENFORCE: "true"
   TZ: Asia/Manila
   RCON_CMDS_STARTUP: |-
     gamerule playersSleepingPercentage 1

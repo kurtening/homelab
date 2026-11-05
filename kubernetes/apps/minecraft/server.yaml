@@ -31,6 +31,8 @@ spec:
       app.kubernetes.io/component: server
   template:
     metadata:
+      annotations:
+        homelab.kurtening.dev/resource-pack-revision: excalibur-26.1_01
       labels:
         app.kubernetes.io/name: minecraft
         app.kubernetes.io/component: server
