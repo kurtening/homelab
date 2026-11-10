@@ -178,6 +178,14 @@ mise exec -- python3 scripts/minecraft/create-admin-secret.py
 mise exec -- python3 scripts/minecraft/create-admin-secret.py --verify
 ```
 
+**Additional activation blocker:** isolated tests against both a disposable
+Minecraft server and a mock RCON server timed out waiting for the first console
+command response. The mock observed that the command was sent, so a timeout
+does not prove that a command failed to execute. Do not retry commands on that
+basis. Diagnose and fix the response handling, then verify command results and
+side effects before enabling this console. The current image also uses Node 12
+and salted MD5 password hashes; its security suitability remains unresolved.
+
 The helper refuses to replace non-placeholder credentials, captures the current
 RCON password privately, prompts twice without echoing for the console password,
 and derives the console WebSocket URL,
