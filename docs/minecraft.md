@@ -182,8 +182,9 @@ The pinned console initializes its RCON callback queue incorrectly, causing the
 first command to execute without returning its result. An init container checks
 the expected source and patches that queue for Minecraft RCON only. The patched
 console returned a first `list` response against both a mock and a disposable
-Minecraft server; sequential commands, restart, and error behavior remain to be
-tested before activation. A command timeout never proves it did not execute.
+Minecraft server. Two sequential commands returned matching responses against
+the mock; restart and error behavior remain to be tested before activation.
+A command timeout never proves it did not execute.
 The image also uses Node 12 and salted MD5 password hashes; its security
 suitability remains unresolved.
 
