@@ -86,6 +86,27 @@ spec:
       securityContext:
         fsGroup: 1000
         seccompProfile: {type: RuntimeDefault}
+      initContainers:
+        - name: patch-rcon
+          image: docker.io/itzg/rcon:0.14.1-1@sha256:4bec01981dc95e14f54c243ced5db23591c67e5a63d474a3f4f8acda72ce5a28
+          command: ["sh", "-ec"]
+          args:
+            - |
+              source=/opt/rcon-web-admin/src/rcon.js
+              test "$(grep -F -c 'this.callbacks = [0];' "$source")" = 1
+              sed 's/this.callbacks = \[0\];/this.callbacks = server.serverData.web ? [0] : [];/' "$source" > /patch/rcon.js
+              grep -Fq 'this.callbacks = server.serverData.web ? [0] : [];' /patch/rcon.js
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 128Mi}
+          volumeMounts:
+            - {name: rcon-patch, mountPath: /patch}
       containers:
         - name: console
           image: docker.io/itzg/rcon:0.14.1-1@sha256:4bec01981dc95e14f54c243ced5db23591c67e5a63d474a3f4f8acda72ce5a28
@@ -107,6 +128,7 @@ spec:
             limits: {cpu: 500m, memory: 384Mi}
           volumeMounts:
             - {name: database, mountPath: /opt/rcon-web-admin/db}
+            - {name: rcon-patch, mountPath: /opt/rcon-web-admin/src/rcon.js, subPath: rcon.js, readOnly: true}
         - name: proxy
           image: docker.io/nginxinc/nginx-unprivileged:1.29-alpine@sha256:0c79d56aee561a1d81c63f00eee5fb5fe29279560cdc55e91425133104c7fbe6
           ports: [{name: http, containerPort: 8080, protocol: TCP}]
@@ -125,6 +147,7 @@ spec:
       volumes:
         - {name: database, persistentVolumeClaim: {claimName: minecraft-admin-data}}
         - {name: proxy-config, configMap: {name: minecraft-admin-proxy}}
+        - {name: rcon-patch, emptyDir: {}}
 ---
 apiVersion: v1
 kind: Service
