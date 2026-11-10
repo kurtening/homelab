@@ -250,14 +250,28 @@ notifier and Fabric Kotlin require an isolated startup
 and join/leave test before production activation.
 
 **Activation gate:** the encrypted Secret contains a `PENDING` placeholder.
-Do not merge or sync this change until a dedicated channel webhook has been
-created and inserted with `sops edit` using the existing protected age identity
-and a private mode-0700 temporary directory outside the worktree. Never paste
-the URL in chat, shell arguments, Git, or logs. Replace `stringData.webhook`,
-remove the credential-status annotation, validate ciphertext and perform the
-protected render, then verify the Secret Application is healthy before the
-Minecraft rollout. Confirm a current backup, no active
-backup, and a quiet window before merging because the pod restarts.
+Do not merge or sync this change until a dedicated webhook has been created for
+the intended Discord channel. In Discord, open the channel's settings, choose
+**Integrations → Webhooks**, create a webhook and copy its URL. In a private
+terminal on the administration laptop, from this checkout on the reviewed
+branch, enter the absolute path of the existing age identity when prompted:
+
+```bash
+read -r -p 'Absolute path to your existing age identity: ' SOPS_AGE_KEY_FILE
+export SOPS_AGE_KEY_FILE
+mise exec -- python3 scripts/minecraft/configure-discord-secret.py
+mise exec -- sops filestatus kubernetes/secrets/minecraft-discord/webhook.sops.yaml
+mise exec -- ./scripts/validate-kubernetes.sh
+```
+
+Paste the webhook URL into each of the two hidden prompts. The helper validates
+and encrypts it, compares the decrypted value silently, and refuses to replace a
+non-placeholder credential. Its temporary plaintext exists only in a mode-0700
+directory outside the worktree. Never paste the URL into chat, shell commands,
+Git, or logs. Check that `sops filestatus` reports `"encrypted":true`, review
+and commit only ciphertext, and verify the Secret Application is healthy before
+the Minecraft rollout. Confirm a current backup, no active backup, and a quiet
+window before merging because the pod restarts.
 
 Verify join and leave with a player and confirm no chat or addresses are sent.
 For rollback, first make a GitOps change setting `MODS: ""` while leaving the
