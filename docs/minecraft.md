@@ -166,7 +166,9 @@ The Fabric notifier sends join and leave events to a loopback relay; the relay
 alone holds the dedicated Discord webhook. No chat, IP addresses, or server logs
 are forwarded. Delivery is best effort; failures are logged without the URL or
 message. The relay is a separate container, so Discord failures must not stop
-Minecraft. The pinned notifier and Fabric Kotlin require an isolated startup
+Minecraft. A missing or invalid webhook disables delivery without making the
+relay or game pod unready; the relay reads the projected credential on each
+event. The pinned notifier and Fabric Kotlin require an isolated startup
 and join/leave test before production activation.
 
 **Activation gate:** the encrypted Secret contains a `PENDING` placeholder.
@@ -176,8 +178,7 @@ and a private mode-0700 temporary directory outside the worktree. Never paste
 the URL in chat, shell arguments, Git, or logs. Replace `stringData.webhook`,
 remove the credential-status annotation, validate ciphertext and perform the
 protected render, then verify the Secret Application is healthy before the
-Minecraft rollout. Without the Secret the pod cannot start; an invalid URL makes
-the relay fail and prevents pod readiness. Confirm a current backup, no active
+Minecraft rollout. Confirm a current backup, no active
 backup, and a quiet window before merging because the pod restarts.
 
 Verify join and leave with a player and confirm no chat or addresses are sent.

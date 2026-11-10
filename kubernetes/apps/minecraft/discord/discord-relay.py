@@ -44,6 +44,15 @@ def send(url, content):
         return False
 
 
+def read_webhook(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            url = f.read(2048).strip()
+        return url if valid_url(url) else None
+    except (OSError, UnicodeError):
+        return None
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
@@ -64,7 +73,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_response(400)
             self.end_headers()
             return
-        ok = send(self.server.webhook, content)
+        webhook = read_webhook(self.server.webhook_file)
+        ok = bool(webhook) and send(webhook, content)
         if not ok:
             print("Discord delivery failed", flush=True)
         self.send_response(204 if ok else 502)
@@ -97,12 +107,8 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 
 def main():
-    with open(os.environ.get("WEBHOOK_FILE", "/run/secrets/discord/webhook"), encoding="utf-8") as f:
-        url = f.read(2048).strip()
-    if not valid_url(url):
-        raise SystemExit("Invalid Discord webhook configuration")
     server = Server(("127.0.0.1", 8765), Handler)
-    server.webhook = url
+    server.webhook_file = os.environ.get("WEBHOOK_FILE", "/run/secrets/discord/webhook")
     server.serve_forever()
 
 

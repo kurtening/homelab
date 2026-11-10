@@ -4,6 +4,7 @@ import json
 import pathlib
 import sys
 import threading
+import tempfile
 import unittest
 import urllib.error
 import urllib.request
@@ -24,7 +25,9 @@ class RelayTest(unittest.TestCase):
 
     def test_events_and_failure_redaction(self):
         server = relay.Server(("127.0.0.1", 0), relay.Handler)
-        server.webhook = "https://discord.com/api/webhooks/123/SYNTHETIC_SECRET"
+        temporary = tempfile.TemporaryDirectory()
+        server.webhook_file = str(pathlib.Path(temporary.name) / 'webhook')
+        pathlib.Path(server.webhook_file).write_text("https://discord.com/api/webhooks/123/SYNTHETIC_SECRET")
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         url = "http://127.0.0.1:%d/events" % server.server_port
@@ -48,6 +51,33 @@ class RelayTest(unittest.TestCase):
             server.shutdown()
             thread.join()
             server.server_close()
+            temporary.cleanup()
+
+    def test_missing_invalid_and_replaced_credential(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = pathlib.Path(temporary) / 'webhook'
+            server = relay.Server(('127.0.0.1', 0), relay.Handler)
+            server.webhook_file = str(path)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            url = 'http://127.0.0.1:%d/events' % server.server_port
+            event = json.dumps({'content': '🔴  Alex left.. (0 online)'}).encode()
+            try:
+                with patch.object(relay, 'send', return_value=True) as send, patch('sys.stdout', new_callable=io.StringIO):
+                    for value in (None, 'invalid'):
+                        if value is not None:
+                            path.write_text(value)
+                        with self.assertRaises(urllib.error.HTTPError) as error:
+                            urllib.request.urlopen(urllib.request.Request(url, data=event))
+                        self.assertEqual(error.exception.code, 502)
+                    send.assert_not_called()
+                    path.write_text('https://discord.com/api/webhooks/123/synthetic')
+                    self.assertEqual(urllib.request.urlopen(urllib.request.Request(url, data=event)).status, 204)
+                    send.assert_called_once()
+            finally:
+                server.shutdown()
+                thread.join()
+                server.server_close()
 
     def test_outbound_failure_is_silent_and_no_redirects(self):
         opener = unittest.mock.Mock()
