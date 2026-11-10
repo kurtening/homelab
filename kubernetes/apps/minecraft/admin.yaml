@@ -72,6 +72,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: minecraft-admin
+  annotations:
+    homelab.kurtening.dev/security-status: PENDING
 spec:
   replicas: 1
   strategy: {type: Recreate}
