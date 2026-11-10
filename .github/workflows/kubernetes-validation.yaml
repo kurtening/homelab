@@ -44,7 +44,9 @@ jobs:
         run: python3 scripts/test-minecraft-backup.py
 
       - name: Check Minecraft Discord relay
-        run: python3 scripts/minecraft/test_discord_relay.py
+        run: |
+          python3 scripts/minecraft/test_discord_relay.py
+          python3 scripts/minecraft/test_discord_secret.py
 
       - name: Check monitoring collector and pinned configurations
         run: |
