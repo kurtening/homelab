@@ -30,8 +30,8 @@ data:
   OVERRIDE_SERVER_PROPERTIES: "true"
   ENABLE_ROLLING_LOGS: "true"
   MOTD: Private Minecraft server
-  RESOURCE_PACK: https://cdn.modrinth.com/data/5aPp18Lx/versions/3Z2r4oP7/3D%20Default%201.21.2%2B%20v1.16.0.zip
-  RESOURCE_PACK_SHA1: 1653ce04cd71f0dc94c3b2c47013e5d3c6e76dc2
+  RESOURCE_PACK: https://cdn.modrinth.com/data/p6DhaYT0/versions/w7BtJ3hF/Fresh%20Textures%20v2.0.1.1.zip
+  RESOURCE_PACK_SHA1: 049d6ddf2a36bde4bcd2daa8509ba70da3133e70
   RESOURCE_PACK_ENFORCE: "false"
   TZ: Asia/Manila
   RCON_CMDS_STARTUP: |-

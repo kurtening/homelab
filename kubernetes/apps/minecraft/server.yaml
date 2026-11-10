@@ -32,7 +32,7 @@ spec:
   template:
     metadata:
       annotations:
-        homelab.kurtening.dev/resource-pack-revision: 3d-default-1.16.0
+        homelab.kurtening.dev/resource-pack-revision: fresh-textures-2.0.1.1
       labels:
         app.kubernetes.io/name: minecraft
         app.kubernetes.io/component: server

@@ -18,7 +18,7 @@ Restic repository, and tailnet access are required runtime dependencies.
 - Tailscale-only TCP access on port `25565`
 - one-player sleep and fast leaf decay
 - native pause after the server has been empty for ten minutes
-- optional [3D Default 1.16.0](https://modrinth.com/resourcepack/3d-default/version/3Z2r4oP7) adds depth to vanilla block models
+- optional [Fresh Textures 2.0.1.1](https://modrinth.com/resourcepack/fresh-textures/version/w7BtJ3hF) adds variations to familiar planks, ores, and foliage
 
 The client pack is not installed on the server. The server downloads these
 exact Modrinth releases at startup:
@@ -125,7 +125,7 @@ minecraft.<tailnet>.ts.net:25565
 
 Use the private tailnet suffix from the Tailscale admin console; never commit it.
 
-The server offers 3D Default on join. Choose **Prompt** under **Server Resource
+The server offers Fresh Textures on join. Choose **Prompt** under **Server Resource
 Packs** in the multiplayer server entry to decide whether to download it.
 Choose **Disabled** to join with your own resource packs. Shaders are a personal
 client setting. When updating the pack, verify the ZIP against the pinned SHA-1.
