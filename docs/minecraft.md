@@ -168,6 +168,9 @@ the Minecraft pod and console proxy. Tailscale policy is external: explicitly
 grant the console device only to the owner and selected co-admins. Sharing the
 game device does not itself share this console. Verify policies on live K3s;
 the presence of a NetworkPolicy manifest does not prove enforcement.
+An isolated namespace test confirmed that this cluster enforced a matching
+same-namespace RCON pod selector: the allowed test pod connected and another
+test pod was blocked. This does not verify the actual Tailscale proxy or policy.
 
 **Do not merge before provisioning and testing.** The committed encrypted
 admin Secret contains only `PENDING` placeholders. From a private terminal on
@@ -212,10 +215,18 @@ an encrypted backup if the database is added to a future backup workflow.
 Restrict access through
 the Tailscale admin console, then add and remove individual accounts inside the
 web console. Confirm each co-admin and an unshared player with separate devices.
+An isolated synthetic test created a separate co-admin account and confirmed its
+login after a console restart using the same temporary database; backup and
+recovery of the database and a full Minecraft restart remain untested.
 The console image uses Node 12 and its upstream authentication uses salted MD5
-for passwords, which is unsuitable for modern password storage. Treat it as a
-privileged legacy service and keep it private. Verify its HTTPS, WebSocket, permissions and RCON behavior
-on an isolated server before activation. No public port forwarding or Funnel.
+for passwords, which is unsuitable for modern password storage. Do not activate
+this legacy console: private ingress does not correct those underlying risks.
+[Hopper](https://github.com/0xN1nja/hopper) is a possible alternative and uses
+bcrypt, but its documented deployment provides one initial account and its
+session cookie lacks the Secure attribute. It has not been validated for the
+individual co-admin, recovery and Kubernetes requirements. Select and review a
+maintained alternative that satisfies those requirements before changing the
+console design. No public port forwarding or Funnel.
 
 Before merge verify a current backup, no running backup and a quiet window. The
 server restart switches from an automatically generated RCON password to the
