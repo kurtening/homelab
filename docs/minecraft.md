@@ -173,13 +173,17 @@ test pod was blocked. This does not verify the actual Tailscale proxy or policy.
 
 **Do not merge before provisioning and testing.** The committed encrypted
 admin Secret contains only `PENDING` placeholders. From a private terminal on
-the administration laptop, generate and save a separate console password in
-the password vault. Set `SOPS_AGE_KEY_FILE` to the existing protected identity,
-verify the active kube context and Minecraft health, then run:
+the administration laptop, after the security blocker is resolved, generate and
+save a separate console password in the password vault. From the reviewed admin
+branch, verify the active kube context and Minecraft health, then enter the
+absolute path to the existing age identity and run:
 
 ```bash
+read -r -p 'Absolute path to your existing age identity: ' SOPS_AGE_KEY_FILE
+export SOPS_AGE_KEY_FILE
 mise exec -- python3 scripts/minecraft/create-admin-secret.py
 mise exec -- python3 scripts/minecraft/create-admin-secret.py --verify
+mise exec -- ./scripts/validate-kubernetes.sh
 ```
 
 The pinned console initializes its RCON callback queue incorrectly, causing the
@@ -196,8 +200,8 @@ suitability remains unresolved.
 
 The helper refuses to replace non-placeholder credentials, captures the current
 RCON password privately, prompts twice without echoing for the console password,
-and derives the console WebSocket URL,
-encrypts them, and checks the password against the running server. It does not
+derives the console WebSocket URL, encrypts them, and checks the password
+against the running server. It does not
 display values. Review and commit only the encrypted file. Run `--verify`
 again immediately before merge; a server restart changes its current generated
 password. If verification fails, do not merge. Run the helper with
