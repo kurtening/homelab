@@ -215,8 +215,10 @@ Restrict access through
 the Tailscale admin console, then add and remove individual accounts inside the
 web console. Confirm each co-admin and an unshared player with separate devices.
 An isolated synthetic test created a separate co-admin account and confirmed its
-login after a console restart using the same temporary database; backup and
-recovery of the database and a full Minecraft restart remain untested.
+login after a console restart. A separate isolated test stopped the console,
+copied its synthetic database to a fresh directory, and confirmed co-admin login
+after starting from that copy. This is not a production backup or restore test;
+a full Minecraft restart also remains untested.
 The console image uses Node 12 and its upstream authentication uses salted MD5
 for passwords, which is unsuitable for modern password storage. Do not activate
 this legacy console: private ingress does not correct those underlying risks.
