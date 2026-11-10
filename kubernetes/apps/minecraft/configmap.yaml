@@ -30,9 +30,9 @@ data:
   OVERRIDE_SERVER_PROPERTIES: "true"
   ENABLE_ROLLING_LOGS: "true"
   MOTD: Private Minecraft server
-  RESOURCE_PACK: https://cdn.modrinth.com/data/hJAzl1Bs/versions/ScfKVGaF/Excalibur_V26.1_01.zip
-  RESOURCE_PACK_SHA1: f14f03d76c48e6c99a02ccefff0070c4fe3f110b
-  RESOURCE_PACK_ENFORCE: "true"
+  RESOURCE_PACK: https://cdn.modrinth.com/data/5aPp18Lx/versions/3Z2r4oP7/3D%20Default%201.21.2%2B%20v1.16.0.zip
+  RESOURCE_PACK_SHA1: 1653ce04cd71f0dc94c3b2c47013e5d3c6e76dc2
+  RESOURCE_PACK_ENFORCE: "false"
   TZ: Asia/Manila
   RCON_CMDS_STARTUP: |-
     gamerule playersSleepingPercentage 1
