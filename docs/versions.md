@@ -42,6 +42,7 @@ verification or live-installation report. It performs no network requests.
 | Helm chart: tailscale-operator | `1.98.9` | chart version | [kubernetes/clusters/krof-desktop/tailscale-operator-application.yaml](../kubernetes/clusters/krof-desktop/tailscale-operator-application.yaml) |
 | Minecraft client pack | `13.3.0` | documented client contract | [docs/minecraft.md](../docs/minecraft.md) |
 | Minecraft mod: fabric-api | `lOQ4tyDD` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
+| Minecraft mod: fabric-language-kotlin | `Pd0xrHCw` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
 | Minecraft mod: ferrite-core | `d5ddUdiB` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
 | Minecraft mod: leaves-us-in-peace | `OZtHERvr` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
 | Minecraft mod: lithium | `fQBdPR1m` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |

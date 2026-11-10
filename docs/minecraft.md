@@ -29,8 +29,10 @@ exact Modrinth releases at startup:
 | Lithium | `0.24.6` | `fQBdPR1m` |
 | FerriteCore | `9.0.0` | `d5ddUdiB` |
 | Leaves Us In Peace | `1.12.0` | `OZtHERvr` |
+| Fabric Language Kotlin | `1.13.12+kotlin.2.4.0` | `Pd0xrHCw` |
 
-Minecraft, Fabric, the container image, and every mod are intentionally pinned.
+Discord Notifier `0.5.0` is separately pinned to its GitHub release and verified
+by SHA-256 before use. Minecraft, Fabric, the container image, and every mod are intentionally pinned.
 Treat upgrades as reviewed migrations: take a fresh backup, change one version
 set, validate startup and gameplay, and retain the prior pins for rollback.
 
@@ -220,6 +222,39 @@ server restart switches from an automatically generated RCON password to the
 captured stable value; verify `rcon-cli` and backup save coordination afterwards.
 Revert the admin change to remove the console and resume generated credentials;
 preserve the retained console PVC and encrypted Secret until separately reviewed.
+
+## Discord player notifications
+
+The Fabric notifier sends join and leave events to a loopback relay; the relay
+alone holds the dedicated Discord webhook. No chat, IP addresses, or server logs
+are forwarded. Delivery is best effort; failures are logged without the URL or
+message. The relay is a separate container, so Discord failures must not stop
+Minecraft. A missing or invalid webhook disables delivery without making the
+relay or game pod unready; the relay reads the projected credential on each
+event. The pinned notifier and Fabric Kotlin require an isolated startup
+and join/leave test before production activation.
+
+**Activation gate:** the encrypted Secret contains a `PENDING` placeholder.
+Do not merge or sync this change until a dedicated channel webhook has been
+created and inserted with `sops edit` using the existing protected age identity
+and a private mode-0700 temporary directory outside the worktree. Never paste
+the URL in chat, shell arguments, Git, or logs. Replace `stringData.webhook`,
+remove the credential-status annotation, validate ciphertext and perform the
+protected render, then verify the Secret Application is healthy before the
+Minecraft rollout. Confirm a current backup, no active
+backup, and a quiet window before merging because the pod restarts.
+
+Verify join and leave with a player and confirm no chat or addresses are sent.
+For rollback, first make a GitOps change setting `MODS: ""` while leaving the
+Kotlin pin and remaining notifier configuration intact. After reconciliation
+and restart, confirm the notifier jar is absent from the retained mods directory
+and the server is healthy. Only then revert the remaining notifier changes.
+Simply deleting the `MODS` setting skips the image's variable-list cleanup and
+can leave the jar behind. A disposable test of the pinned image's `mcopy`
+helper confirmed that an empty list removes its managed jar while leaving an
+unmanaged jar intact. A complete server restart and rollback test remains
+required before production use. Retain the encrypted Secret and separately
+revoke the Discord webhook if no longer needed.
 
 ## Backup installation and verification
 

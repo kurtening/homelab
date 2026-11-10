@@ -1,0 +1,1 @@
+{"webhookUrl":"http://127.0.0.1:8765/events","messages":{"player":{"enabled":true,"webhookUrl":"","enableJoinMessages":true,"enableLeaveMessages":true},"server":{"enabled":false,"webhookUrl":"","enableStartedMessages":false,"enableStoppedMessages":false}}}

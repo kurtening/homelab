@@ -43,6 +43,9 @@ jobs:
       - name: Check Minecraft backup save recovery and installation guards
         run: python3 scripts/test-minecraft-backup.py
 
+      - name: Check Minecraft Discord relay
+        run: python3 scripts/minecraft/test_discord_relay.py
+
       - name: Check monitoring collector and pinned configurations
         run: |
           python3 -m venv /tmp/monitoring-tests
@@ -62,3 +65,6 @@ jobs:
 
       - name: Require provisioned Minecraft admin credentials
         run: python3 scripts/minecraft/check-credential-gate.py
+
+      - name: Require provisioned Minecraft Discord webhook
+        run: python3 scripts/minecraft/check-discord-credential-gate.py

@@ -1,5 +1,5 @@
 {
-  "applications": ["cluster-root", "argocd", "whoami", "traefik-config", "tailscale-secrets", "tailscale-operator", "immich-secrets", "immich-storage", "immich", "minecraft-storage", "minecraft-admin-secrets", "minecraft", "jellyfin-secrets", "jellyfin-storage", "jellyfin", "monitoring-secrets", "monitoring"],
+  "applications": ["cluster-root", "argocd", "whoami", "traefik-config", "tailscale-secrets", "tailscale-operator", "immich-secrets", "immich-storage", "immich", "minecraft-storage", "minecraft-admin-secrets", "minecraft-discord-secrets", "minecraft", "jellyfin-secrets", "jellyfin-storage", "jellyfin", "monitoring-secrets", "monitoring"],
   "resources": {
     "immich": [["Deployment", "immich-server", null], ["Deployment", "immich-machine-learning", null], ["Deployment", "immich-valkey", null], ["StatefulSet", "immich-postgres", null], ["PersistentVolumeClaim", "immich-library", "immich-library"], ["PersistentVolumeClaim", "immich-postgres", "immich-postgres"], ["PersistentVolumeClaim", "immich-model-cache", null]],
     "jellyfin": [["Deployment", "jellyfin", null], ["PersistentVolumeClaim", "jellyfin-state", "jellyfin-state"], ["PersistentVolumeClaim", "jellyfin-media", "jellyfin-media"]],
