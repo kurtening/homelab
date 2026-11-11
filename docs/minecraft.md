@@ -231,7 +231,9 @@ bcrypt, but its documented deployment provides one initial account and its
 session cookie lacks the Secure attribute. It has not been validated for the
 individual co-admin, recovery and Kubernetes requirements. Select and review a
 maintained alternative that satisfies those requirements before changing the
-console design. No public port forwarding or Funnel.
+console design. See [console assessment](minecraft-console-assessment.md) for
+the isolated candidate results and remaining gates. No public port forwarding
+or Funnel.
 
 Before merge verify a current backup, no running backup and a quiet window. The
 server restart switches from an automatically generated RCON password to the
