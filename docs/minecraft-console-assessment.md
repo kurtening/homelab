@@ -46,6 +46,16 @@ GitHub reported no repository license at review. The Go test ran in a disposable
 resource-limited container without any production credentials or cluster access.
 Do not activate it based on this assessment.
 
+## MCRCON
+
+[MCRCON](https://github.com/bySenom/MCRCON) revision
+`b34a26ca0311cf64f6612734e875fc5d01e15ed9` advertises multiple users and bcrypt.
+Source inspection found that its registration route has no authentication
+middleware and forwards a requester-supplied role to account creation, which
+accepts `admin`. This is a source-level finding, not a runtime exploitation
+test. It makes the candidate unsuitable for the requested selected-admin access
+without remediation and verification; do not deploy it.
+
 ## Recommendation
 
 Do not deploy either candidate or the legacy draft yet. Continue evaluating a
