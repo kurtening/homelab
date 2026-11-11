@@ -168,10 +168,12 @@ message. The relay is a separate container, so Discord failures must not stop
 Minecraft. A missing or invalid webhook disables delivery without making the
 relay or game pod unready; the relay reads the projected credential on each
 event. An isolated K3s pod with a dummy game container and the real relay stayed
-ready with the Secret absent and after an invalid Secret was projected. This is
-not a full Minecraft gameplay or real Discord delivery test. The pinned
-notifier and Fabric Kotlin require an isolated startup
-and join/leave test before production activation.
+ready with the Secret absent and after an invalid Secret was projected. On a
+separate disposable Minecraft world, a synthetic 26.1.2 client joined and left
+through the pinned notifier; the relay accepted both events and did not forward
+a synthetic chat message. The client also joined and left while the webhook was
+missing or invalid and while the relay was stopped. The relay's outbound send
+was mocked; actual Discord delivery and a real-player test remain pending.
 
 **Activation gate:** the encrypted Secret contains a `PENDING` placeholder.
 Do not merge or sync this change until a dedicated webhook has been created for
@@ -205,9 +207,12 @@ and the server is healthy. Only then revert the remaining notifier changes.
 Simply deleting the `MODS` setting skips the image's variable-list cleanup and
 can leave the jar behind. A disposable test of the pinned image's `mcopy`
 helper confirmed that an empty list removes its managed jar while leaving an
-unmanaged jar intact. A complete server restart and rollback test remains
-required before production use. Retain the encrypted Secret and separately
-revoke the Discord webhook if no longer needed.
+unmanaged jar intact. A separate disposable-world test confirmed that the
+pinned server started healthy with the notifier, restarted healthy with the
+notifier jar removed while retaining Kotlin, and restarted healthy again after
+removing Kotlin from the project list. The test did not verify Kotlin's jar was
+removed. Retain the encrypted Secret and separately revoke the Discord webhook
+if no longer needed.
 
 ## Backup installation and verification
 
