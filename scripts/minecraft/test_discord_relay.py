@@ -89,6 +89,7 @@ class RelayTest(unittest.TestCase):
         self.assertIsInstance(build.call_args.args[0], relay.NoRedirect)
         request = opener.open.call_args.args[0]
         self.assertEqual(json.loads(request.data)["allowed_mentions"], {"parse": []})
+        self.assertEqual(request.get_header("User-agent"), "DiscordBot (https://github.com/kurtening/homelab, 1.0)")
 
     def test_stalled_upstream_times_out(self):
         release = threading.Event()

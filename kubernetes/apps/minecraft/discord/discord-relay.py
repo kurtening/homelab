@@ -36,7 +36,8 @@ def valid_url(value):
 def send(url, content):
     payload = json.dumps({"content": content, "allowed_mentions": {"parse": []}}).encode()
     request = urllib.request.Request(url, data=payload, method="POST",
-                                     headers={"Content-Type": "application/json"})
+                                     headers={"Content-Type": "application/json",
+                                              "User-Agent": "DiscordBot (https://github.com/kurtening/homelab, 1.0)"})
     try:
         with urllib.request.build_opener(NoRedirect()).open(request, timeout=5) as response:
             return 200 <= response.status < 300
