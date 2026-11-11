@@ -257,9 +257,9 @@ a synthetic chat message. The client also joined and left while the webhook was
 missing or invalid and while the relay was stopped. The relay's outbound send
 was mocked; actual Discord delivery and a real-player test remain pending.
 
-**Activation gate:** the encrypted Secret contains a `PENDING` placeholder.
-Do not merge or sync this change until a dedicated webhook has been created for
-the intended Discord channel. In Discord, open the channel's settings, choose
+**Activation gate:** verify the encrypted Secret contains the intended dedicated
+webhook and that the protected render succeeds before merging or syncing. To
+replace a `PENDING` placeholder, open the channel's settings in Discord, choose
 **Integrations → Webhooks**, create a webhook and copy its URL. In a private
 terminal on the administration laptop, from this checkout on the reviewed
 branch, enter the absolute path of the existing age identity when prompted:
