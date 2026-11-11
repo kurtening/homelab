@@ -34,8 +34,9 @@ route accessible without authentication. The same test verified that the actual
 flag enables configuration validation when OAuth settings are missing. An empty
 allowlist permits any Discord user to authenticate. The candidate has not passed
 an end-to-end OAuth, authorization, RCON, recovery or image-supply-chain review;
-GitHub reported no repository license at review. Do not activate it based on this
-assessment.
+GitHub reported no repository license at review. The Go test ran in a disposable,
+resource-limited container without any production credentials or cluster access.
+Do not activate it based on this assessment.
 
 ## Recommendation
 
