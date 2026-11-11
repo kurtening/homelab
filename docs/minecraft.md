@@ -157,7 +157,89 @@ kubectl --namespace minecraft exec "${minecraft_pod}" \
   --container minecraft -- rcon-cli op OPERATOR_NAME
 ```
 
-The RCON port is cluster-internal and is not exposed by a Service.
+The RCON port is exposed only through the cluster-internal admin Service.
+
+## Private administration console
+
+The proposed console uses its own Tailscale HTTPS endpoint and individual
+accounts. Its RCON Service is internal, and NetworkPolicies restrict access to
+the Minecraft pod and console proxy. Tailscale policy is external: explicitly
+grant the console device only to the owner and selected co-admins. Sharing the
+game device does not itself share this console. Verify policies on live K3s;
+the presence of a NetworkPolicy manifest does not prove enforcement.
+An isolated namespace test confirmed that this cluster enforced a matching
+same-namespace RCON pod selector: the allowed test pod connected and another
+test pod was blocked. This does not verify the actual Tailscale proxy or policy.
+
+**Do not merge before provisioning and testing.** The committed encrypted
+admin Secret contains only `PENDING` placeholders. From a private terminal on
+the administration laptop, after the security blocker is resolved, generate and
+save a separate console password in the password vault. From the reviewed admin
+branch, verify the active kube context and Minecraft health, then enter the
+absolute path to the existing age identity and run:
+
+```bash
+read -r -p 'Absolute path to your existing age identity: ' SOPS_AGE_KEY_FILE
+export SOPS_AGE_KEY_FILE
+mise exec -- python3 scripts/minecraft/create-admin-secret.py
+mise exec -- python3 scripts/minecraft/create-admin-secret.py --verify
+mise exec -- ./scripts/validate-kubernetes.sh
+```
+
+The pinned console initializes its RCON callback queue incorrectly, causing the
+first command to execute without returning its result. An init container checks
+the expected source and patches that queue for Minecraft RCON only. The patched
+console returned a first `list` response against both a mock and a disposable
+Minecraft server. Two sequential commands returned matching responses against
+the mock. In a separate mock test, the console reconnected after an RCON
+disconnect and a later command returned successfully; the interrupted command
+received no result. A command timeout never proves it did not execute. Full
+server and console restart behavior remains to be tested before activation.
+The image also uses Node 12 and salted MD5 password hashes; its security
+suitability remains unresolved.
+
+The helper refuses to replace non-placeholder credentials, captures the current
+RCON password privately, prompts twice without echoing for the console password,
+derives the console WebSocket URL, encrypts them, and checks the password
+against the running server. It does not
+display values. Review and commit only the encrypted file. Run `--verify`
+again immediately before merge; a server restart changes its current generated
+password. If verification fails, do not merge. Run the helper with
+`--refresh-rcon`, then `--verify`; this retains the console password and captures
+the current RCON value. Review and commit the new ciphertext before merging.
+Never print credentials, pass them in shell arguments or paste them into chat.
+
+The console has a retained local-path PVC for accounts; it is not covered by
+the Minecraft world backup. Independently protect the admin credential and plan
+to recreate co-admin accounts if this database is lost. Restrict access through
+the host filesystem: the console database may contain RCON credentials and
+account information, and must not be copied into this public repository. Use
+an encrypted backup if the database is added to a future backup workflow.
+Restrict access through
+the Tailscale admin console, then add and remove individual accounts inside the
+web console. Confirm each co-admin and an unshared player with separate devices.
+An isolated synthetic test created a separate co-admin account and confirmed its
+login after a console restart. A separate isolated test stopped the console,
+copied its synthetic database to a fresh directory, and confirmed co-admin login
+after starting from that copy. This is not a production backup or restore test;
+a full Minecraft restart also remains untested.
+The console image uses Node 12 and its upstream authentication uses salted MD5
+for passwords, which is unsuitable for modern password storage. Do not activate
+this legacy console: private ingress does not correct those underlying risks.
+[Hopper](https://github.com/0xN1nja/hopper) is a possible alternative and uses
+bcrypt, but its documented deployment provides one initial account and its
+session cookie lacks the Secure attribute. It has not been validated for the
+individual co-admin, recovery and Kubernetes requirements. Select and review a
+maintained alternative that satisfies those requirements before changing the
+console design. See [console assessment](minecraft-console-assessment.md) for
+the isolated candidate results and remaining gates. No public port forwarding
+or Funnel.
+
+Before merge verify a current backup, no running backup and a quiet window. The
+server restart switches from an automatically generated RCON password to the
+captured stable value; verify `rcon-cli` and backup save coordination afterwards.
+Revert the admin change to remove the console and resume generated credentials;
+preserve the retained console PVC and encrypted Secret until separately reviewed.
 
 ## Discord player notifications
 

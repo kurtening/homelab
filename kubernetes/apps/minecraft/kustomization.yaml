@@ -14,3 +14,4 @@ resources:
   - configmap.yaml
   - persistent-volume-claim.yaml
   - server.yaml
+  - admin.yaml

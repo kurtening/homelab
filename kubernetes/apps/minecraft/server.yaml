@@ -74,6 +74,11 @@ spec:
             - configMapRef:
                 name: minecraft-config
           env:
+            - name: RCON_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minecraft-admin-credentials
+                  key: rcon-password
             - name: SEED
               valueFrom:
                 secretKeyRef:
