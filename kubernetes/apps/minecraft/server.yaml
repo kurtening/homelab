@@ -50,6 +50,22 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: discord-mod
+          image: docker.io/itzg/minecraft-server:2026.8.2-java25@sha256:efa878ddb49cf5251b2e5f2ad71b08fd2f7236c1f7907433f6697258b31d2ce4
+          command: ["sh", "-ec"]
+          args:
+            - |
+              curl --fail --location --silent --show-error --max-time 60 -o /notification-mod/fabric-discord-notifier-0.5.0.jar https://github.com/WesterhofRoy/fabric-discord-notifier/releases/download/v0.5.0/fabric-discord-notifier-0.5.0.jar
+              echo 'ea737a731d1d4ba983b40266dbabb7d20aad0ebb226408155cbdb487322db851  /notification-mod/fabric-discord-notifier-0.5.0.jar' | sha256sum -c
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 500m, memory: 128Mi}
+          volumeMounts:
+            - {name: notification-mod, mountPath: /notification-mod}
       containers:
         - name: minecraft
           image: docker.io/itzg/minecraft-server:2026.8.2-java25@sha256:efa878ddb49cf5251b2e5f2ad71b08fd2f7236c1f7907433f6697258b31d2ce4
@@ -100,7 +116,30 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+            - {name: notification-mod, mountPath: /notification-mod, readOnly: true}
+            - {name: discord-config, mountPath: /data/config/player-discord-notifier.json, subPath: player-discord-notifier.json, readOnly: true}
+        - name: discord-relay
+          image: docker.io/itzg/minecraft-server:2026.8.2-java25@sha256:efa878ddb49cf5251b2e5f2ad71b08fd2f7236c1f7907433f6697258b31d2ce4
+          command: ["python3", "/app/discord-relay.py"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 128Mi}
+          volumeMounts:
+            - {name: discord-config, mountPath: /app, readOnly: true}
+            - {name: discord-secret, mountPath: /run/secrets/discord, readOnly: true}
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: minecraft-data
+        - name: notification-mod
+          emptyDir: {}
+        - name: discord-config
+          configMap:
+            name: minecraft-discord
+        - name: discord-secret
+          secret:
+            secretName: minecraft-discord-webhook
+            optional: true

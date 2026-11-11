@@ -13,7 +13,9 @@ data:
     lithium:fQBdPR1m
     ferrite-core:d5ddUdiB
     leaves-us-in-peace:OZtHERvr
+    fabric-language-kotlin:Pd0xrHCw
   MODRINTH_DOWNLOAD_DEPENDENCIES: none
+  MODS: /notification-mod/fabric-discord-notifier-0.5.0.jar
   INIT_MEMORY: 1G
   MAX_MEMORY: 4G
   MODE: survival

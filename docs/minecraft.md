@@ -29,8 +29,10 @@ exact Modrinth releases at startup:
 | Lithium | `0.24.6` | `fQBdPR1m` |
 | FerriteCore | `9.0.0` | `d5ddUdiB` |
 | Leaves Us In Peace | `1.12.0` | `OZtHERvr` |
+| Fabric Language Kotlin | `1.13.12+kotlin.2.4.0` | `Pd0xrHCw` |
 
-Minecraft, Fabric, the container image, and every mod are intentionally pinned.
+Discord Notifier `0.5.0` is separately pinned to its GitHub release and verified
+by SHA-256 before use. Minecraft, Fabric, the container image, and every mod are intentionally pinned.
 Treat upgrades as reviewed migrations: take a fresh backup, change one version
 set, validate startup and gameplay, and retain the prior pins for rollback.
 
@@ -156,6 +158,61 @@ kubectl --namespace minecraft exec "${minecraft_pod}" \
 ```
 
 The RCON port is cluster-internal and is not exposed by a Service.
+
+## Discord player notifications
+
+The Fabric notifier sends join and leave events to a loopback relay; the relay
+alone holds the dedicated Discord webhook. No chat, IP addresses, or server logs
+are forwarded. Delivery is best effort; failures are logged without the URL or
+message. The relay is a separate container, so Discord failures must not stop
+Minecraft. A missing or invalid webhook disables delivery without making the
+relay or game pod unready; the relay reads the projected credential on each
+event. An isolated K3s pod with a dummy game container and the real relay stayed
+ready with the Secret absent and after an invalid Secret was projected. On a
+separate disposable Minecraft world, a synthetic 26.1.2 client joined and left
+through the pinned notifier; the relay accepted both events and did not forward
+a synthetic chat message. The client also joined and left while the webhook was
+missing or invalid and while the relay was stopped. The relay's outbound send
+was mocked; actual Discord delivery and a real-player test remain pending.
+
+**Activation gate:** verify the encrypted Secret contains the intended dedicated
+webhook and that the protected render succeeds before merging or syncing. To
+replace a `PENDING` placeholder, open the channel's settings in Discord, choose
+**Integrations → Webhooks**, create a webhook and copy its URL. In a private
+terminal on the administration laptop, from this checkout on the reviewed
+branch, enter the absolute path of the existing age identity when prompted:
+
+```bash
+read -r -p 'Absolute path to your existing age identity: ' SOPS_AGE_KEY_FILE
+export SOPS_AGE_KEY_FILE
+mise exec -- python3 scripts/minecraft/configure-discord-secret.py
+mise exec -- sops filestatus kubernetes/secrets/minecraft-discord/webhook.sops.yaml
+mise exec -- ./scripts/validate-kubernetes.sh
+```
+
+Paste the webhook URL into each of the two hidden prompts. The helper validates
+and encrypts it, compares the decrypted value silently, and refuses to replace a
+non-placeholder credential. Its temporary plaintext exists only in a mode-0700
+directory outside the worktree. Never paste the URL into chat, shell commands,
+Git, or logs. Check that `sops filestatus` reports `"encrypted":true`, review
+and commit only ciphertext, and verify the Secret Application is healthy before
+the Minecraft rollout. Confirm a current backup, no active backup, and a quiet
+window before merging because the pod restarts.
+
+Verify join and leave with a player and confirm no chat or addresses are sent.
+For rollback, first make a GitOps change setting `MODS: ""` while leaving the
+Kotlin pin and remaining notifier configuration intact. After reconciliation
+and restart, confirm the notifier jar is absent from the retained mods directory
+and the server is healthy. Only then revert the remaining notifier changes.
+Simply deleting the `MODS` setting skips the image's variable-list cleanup and
+can leave the jar behind. A disposable test of the pinned image's `mcopy`
+helper confirmed that an empty list removes its managed jar while leaving an
+unmanaged jar intact. A separate disposable-world test confirmed that the
+pinned server started healthy with the notifier, restarted healthy with the
+notifier jar removed while retaining Kotlin, and restarted healthy again after
+removing Kotlin from the project list. The test did not verify Kotlin's jar was
+removed. Retain the encrypted Secret and separately revoke the Discord webhook
+if no longer needed.
 
 ## Backup installation and verification
 
