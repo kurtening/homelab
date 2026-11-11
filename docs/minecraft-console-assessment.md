@@ -32,8 +32,16 @@ while its code reads `ENABLE_DISCORD_OAUTH`; authentication defaults to disabled
 In a disposable Go test, setting only the documented flag left a protected test
 route accessible without authentication. The same test verified that the actual
 flag enables configuration validation when OAuth settings are missing. An empty
-allowlist permits any Discord user to authenticate. The candidate has not passed
-an end-to-end OAuth, authorization, RCON, recovery or image-supply-chain review;
+allowlist permits any Discord user to authenticate. A second isolated Go test
+using the actual flag and a synthetic two-user allowlist verified that anonymous
+requests redirect to login, an invalid OAuth state is rejected, and the session
+cookie has Secure and HttpOnly flags for an HTTPS callback. It did not exercise
+Discord itself or verify allowlist enforcement after the OAuth exchange.
+
+The upstream Dockerfile uses unpinned Go 1.25 and Alpine 3.20 base images. This
+revision has no repository license and has not been reviewed for current Go
+compatibility or dependencies. The candidate has not passed an end-to-end OAuth,
+authorization, RCON, recovery or image-supply-chain review;
 GitHub reported no repository license at review. The Go test ran in a disposable,
 resource-limited container without any production credentials or cluster access.
 Do not activate it based on this assessment.
