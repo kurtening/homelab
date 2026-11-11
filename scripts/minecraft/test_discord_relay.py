@@ -1,10 +1,12 @@
 import importlib.util
+import http.server
 import io
 import json
 import pathlib
 import sys
 import threading
 import tempfile
+import time
 import unittest
 import urllib.error
 import urllib.request
@@ -87,6 +89,29 @@ class RelayTest(unittest.TestCase):
         self.assertIsInstance(build.call_args.args[0], relay.NoRedirect)
         request = opener.open.call_args.args[0]
         self.assertEqual(json.loads(request.data)["allowed_mentions"], {"parse": []})
+
+    def test_stalled_upstream_times_out(self):
+        release = threading.Event()
+
+        class SlowHandler(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                release.wait(10)
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), SlowHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            start = time.monotonic()
+            self.assertFalse(relay.send('http://127.0.0.1:%d/events' % server.server_port, 'synthetic'))
+            self.assertLess(time.monotonic() - start, 9)
+        finally:
+            release.set()
+            server.shutdown()
+            thread.join()
+            server.server_close()
 
 
 if __name__ == "__main__":
