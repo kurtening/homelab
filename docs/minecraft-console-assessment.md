@@ -56,9 +56,18 @@ accepts `admin`. This is a source-level finding, not a runtime exploitation
 test. It makes the candidate unsuitable for the requested selected-admin access
 without remediation and verification; do not deploy it.
 
+## MC Admin Panel
+
+[MC Admin Panel](https://github.com/mitchsurp/mcadmin) revision
+`ff668e9b92b98ea802c9f813ecc87907e255f49b` supports Minecraft RCON, but source
+inspection found command handlers exposed through Socket.IO and HTTP without an
+authentication check. GitHub reported no repository license at review. This was
+a source review rather than a runtime penetration test. It does not provide the
+required individual Discord identities and is not a candidate for deployment.
+
 ## Recommendation
 
-Do not deploy either candidate or the legacy draft yet. Continue evaluating a
+Do not deploy these candidates or the legacy draft yet. Continue evaluating a
 maintained, licensed console that has explicit per-user administration and a
 fail-closed authentication configuration. Avoid candidates that require the
 host Docker socket: this server runs in K3s, and granting that socket introduces
