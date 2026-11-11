@@ -65,6 +65,15 @@ authentication check. GitHub reported no repository license at review. This was
 a source review rather than a runtime penetration test. It does not provide the
 required individual Discord identities and is not a candidate for deployment.
 
+## Minecraft WebUI
+
+[Minecraft WebUI](https://github.com/picardflo/minecraft_webui) revision
+`2da196624bb8a391fea34a8f9ff1850a2184a667` is MIT-licensed and connects via
+RCON. Source inspection found a single shared administrator password and a
+shared session identity; the session cookie also lacks the Secure flag. It does
+not provide the required individual Discord identities. This was a source review,
+not a runtime authentication test, and it is not a candidate for deployment.
+
 ## Recommendation
 
 Do not deploy these candidates or the legacy draft yet. Continue evaluating a
