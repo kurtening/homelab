@@ -1,4 +1,5 @@
 import pathlib
+import runpy
 import tomllib
 import unittest
 
@@ -24,6 +25,13 @@ class VanillaConfigTest(unittest.TestCase):
         self.assertIn('MODRINTH_DOWNLOAD_DEPENDENCIES: none', config)
         for pin in ('oT1wWKmM', 'jUe0ucoE', 'NopA8uYe', 'Nq5UZXxA', 'e3hsPc1o'):
             self.assertIn(pin, config)
+
+    def test_smoke_mod_pins_match_gitops(self):
+        config = (ROOT / 'kubernetes/apps/minecraft/configmap.yaml').read_text()
+        block = config.split('  MODRINTH_PROJECTS: |-\n', 1)[1].split('\n  MODRINTH_DOWNLOAD_DEPENDENCIES:', 1)[0]
+        expected = {line.strip() for line in block.splitlines() if line.strip()}
+        smoke = runpy.run_path(str(ROOT / 'scripts/minecraft/smoke-vanilla.py'))
+        self.assertEqual(set(smoke['PINS'].split(',')), expected)
 
 
 if __name__ == '__main__':

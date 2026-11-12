@@ -58,6 +58,11 @@ party members full access; player-facing changes are limited to claim names and
 colors. Verify claims, party membership and container protection with two real
 clients before enabling this configuration. Whitelist changes are separate.
 
+For a repeatable startup-only smoke test, run
+`python3 scripts/minecraft/smoke-vanilla.py` on a host with Docker and `gh`.
+It uses a temporary world, synthetic credentials, bounded CPU and memory, and
+no published ports. It does not test real-player protection or backup recovery.
+
 An isolated test located OPAC data beneath the level directory, Ledger's SQLite
 database at `/data/world-season-2/ledger.sqlite`, and LuckPerms' H2 database in
 `/data/mods/luckperms/`. Confirm these paths after any mod update. The existing
