@@ -1,0 +1,11 @@
+[serverConfig]
+permissionSystem = "luck_perms"
+primaryPartySystem = "default"
+playerConfigurablePlayerConfigOptions = ["claims.name", "claims.color"]
+
+[serverConfig.claims]
+maxPlayerClaims = 256
+maxPlayerClaimForceloads = 0
+forceloadBonusPerPartyMember = 0
+forceloadBonusForPartyOwner = 0
+maxPlayerClaimForceloadsPermission = ""

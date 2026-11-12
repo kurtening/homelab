@@ -48,6 +48,9 @@ jobs:
           python3 scripts/minecraft/test_discord_relay.py
           python3 scripts/minecraft/test_discord_secret.py
 
+      - name: Check Minecraft claims draft
+        run: python3 scripts/minecraft/test_vanilla_config.py
+
       - name: Check monitoring collector and pinned configurations
         run: |
           python3 -m venv /tmp/monitoring-tests
@@ -65,3 +68,6 @@ jobs:
 
       - name: Require provisioned Minecraft Discord webhook
         run: python3 scripts/minecraft/check-discord-credential-gate.py
+
+      - name: Require completed Minecraft refresh review
+        run: python3 scripts/minecraft/check-vanilla-refresh-gate.py

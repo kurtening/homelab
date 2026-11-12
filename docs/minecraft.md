@@ -5,8 +5,9 @@ Minecraft runs as a private, single-instance Java Edition server on the
 uses retained local storage. Restic job assets are tracked here, but their
 installation and verification are separate host operations.
 
-The Deployment runs one replica. Its retained storage directory, bootstrap seed,
-Restic repository, and tailnet access are required runtime dependencies.
+The Deployment runs one replica. Its retained storage directory, Restic
+repository, and tailnet access are operational dependencies. Preserve the old
+bootstrap seed Secret for rollback to the previous world configuration.
 
 ## Server contract
 
@@ -30,11 +31,71 @@ exact Modrinth releases at startup:
 | FerriteCore | `9.0.0` | `d5ddUdiB` |
 | Leaves Us In Peace | `1.12.0` | `OZtHERvr` |
 | Fabric Language Kotlin | `1.13.12+kotlin.2.4.0` | `Pd0xrHCw` |
+| Open Parties and Claims | `0.30.3` | `oT1wWKmM` |
+| Forge Config API Port | `26.1.5` | `jUe0ucoE` |
+| Ledger | `1.3.22` | `NopA8uYe` |
+| LuckPerms | `5.5.54` | `Nq5UZXxA` |
+| spark | `1.10.187` | `e3hsPc1o` |
 
 Discord Notifier `0.5.0` is separately pinned to its GitHub release and verified
 by SHA-256 before use. Minecraft, Fabric, the container image, and every mod are intentionally pinned.
 Treat upgrades as reviewed migrations: take a fresh backup, change one version
 set, validate startup and gameplay, and retain the prior pins for rollback.
+
+## Pending vanilla refresh
+
+The refresh selects `forever-world` and a new public seed in the ConfigMap. The
+existing seed Secret is retained for rollback. A snapshot was restored into a
+separate location and a copy started and completed a save flush without
+networking. The operator has excluded player mod tests from this work; the
+behavior of claims and permissions with real players remains unverified.
+Before an explicitly requested merge, recheck backup freshness, no active backup
+and the rollout window; the CI gate is not proof of those live conditions.
+The old world and bootstrap Secret must remain intact.
+
+The claims configuration is copied into `/data/config` at pod startup and is
+managed by Git. Defaults may be expanded by the mod; local edits to this file
+are overwritten on restart. It sets 256 claim chunks, zero forceloads, the
+default party system and LuckPerms. The default player configuration grants
+party members full access; player-facing changes are limited to claim names and
+colors. Claims, party membership and container protection have not been verified
+with real players. Whitelist changes are separate.
+
+For a repeatable startup-only smoke test, run
+`python3 scripts/minecraft/smoke-vanilla.py` on a host with Docker and `gh`.
+It uses a temporary world, synthetic credentials, bounded CPU and memory, and
+no published ports. It does not test real-player protection or backup recovery.
+
+An isolated test located OPAC data beneath the level directory, Ledger's SQLite
+database beneath the level directory (expected at `/data/forever-world/ledger.sqlite`), and LuckPerms' H2 database in
+`/data/mods/luckperms/`. Confirm these paths after any mod update. The existing
+backup covers the full data directory; verify an actual recent snapshot and
+restore it to an isolated directory, then demonstrate startup and saving before
+the production switch. A Git revert does not restore player, claim or database
+state. To roll back, stop player activity, preserve the new state, revert the
+level and seed changes, and restore matching world and global data from the
+verified snapshot while the server is stopped. Never delete the old world or
+run a second server against the live data.
+
+Use the server console only for trusted administrator bootstrap. The proposed
+least-privilege Ledger inspection role is created with these console commands;
+replace `PLAYER` locally, never in Git:
+
+```text
+lp creategroup trustedadmin
+lp group trustedadmin permission set ledger.commands.root true
+lp group trustedadmin permission set ledger.commands.inspect true
+lp group trustedadmin permission set ledger.commands.search true
+lp user PLAYER parent add trustedadmin
+```
+
+Revoke the role with `lp user PLAYER parent remove trustedadmin`. These nodes
+have not been verified with player accounts; no role or administrator is
+provisioned by this draft. Keep
+the default player group free of admin permissions and do not grant normal
+players operator status. Ledger inspection can reveal player activity; give
+access only to selected trusted admins. The console used here is the existing
+server console or an authorized RCON client, not the blocked admin-console draft.
 
 ## Manual prerequisites
 
@@ -70,6 +131,11 @@ The Restic password requires independent recovery. The local repository does
 not protect against theft, fire, or loss of the entire desktop.
 
 ## Bootstrap seed
+
+The new season uses the public seed in `minecraft-config` and does not consume
+the old bootstrap Secret. Preserve that Secret for rollback. The following
+bootstrap instructions apply only when recovering the previous configuration;
+never overwrite an existing Secret or generate a replacement casually.
 
 After the staging change has merged and Argo CD has created the `minecraft`
 namespace, create the untracked bootstrap Secret. The seed must exist before
