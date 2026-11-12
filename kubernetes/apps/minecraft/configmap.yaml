@@ -45,4 +45,4 @@ data:
   RESOURCE_PACK_ENFORCE: "false"
   TZ: Asia/Manila
   RCON_CMDS_STARTUP: |-
-    gamerule playersSleepingPercentage 1
+    gamerule minecraft:players_sleeping_percentage 1
