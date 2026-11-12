@@ -3,9 +3,12 @@ kind: ConfigMap
 metadata:
   name: minecraft-config
 data:
+  VANILLA_REFRESH_STATUS: "READY"
   EULA: "TRUE"
   TYPE: FABRIC
   VERSION: "26.1.2"
+  LEVEL: forever-world
+  SEED: "-4995054936707021313"
   FABRIC_LOADER_VERSION: "0.19.3"
   FABRIC_LAUNCHER_VERSION: "1.1.2"
   MODRINTH_PROJECTS: |-
@@ -14,6 +17,11 @@ data:
     ferrite-core:d5ddUdiB
     leaves-us-in-peace:OZtHERvr
     fabric-language-kotlin:Pd0xrHCw
+    open-parties-and-claims:oT1wWKmM
+    forge-config-api-port:jUe0ucoE
+    ledger:NopA8uYe
+    luckperms:Nq5UZXxA
+    spark:e3hsPc1o
   MODRINTH_DOWNLOAD_DEPENDENCIES: none
   MODS: /notification-mod/fabric-discord-notifier-0.5.0.jar
   INIT_MEMORY: 1G
