@@ -44,11 +44,13 @@ set, validate startup and gameplay, and retain the prior pins for rollback.
 
 ## Pending vanilla refresh
 
-**Do not merge or sync while the refresh gate is pending.** The draft selects
-`forever-world` and a new public seed in the ConfigMap. The existing seed
-Secret is retained for rollback. The
-`VANILLA_REFRESH_STATUS` CI gate remains pending until the isolated two-player
-claim and permission tests, backup restore drill, and rollout review are done.
+The refresh selects `forever-world` and a new public seed in the ConfigMap. The
+existing seed Secret is retained for rollback. A snapshot was restored into a
+separate location and a copy started and completed a save flush without
+networking. The operator has excluded player mod tests from this work; the
+behavior of claims and permissions with real players remains unverified.
+Before an explicitly requested merge, recheck backup freshness, no active backup
+and the rollout window; the CI gate is not proof of those live conditions.
 The old world and bootstrap Secret must remain intact.
 
 The claims configuration is copied into `/data/config` at pod startup and is
@@ -56,8 +58,8 @@ managed by Git. Defaults may be expanded by the mod; local edits to this file
 are overwritten on restart. It sets 256 claim chunks, zero forceloads, the
 default party system and LuckPerms. The default player configuration grants
 party members full access; player-facing changes are limited to claim names and
-colors. Verify claims, party membership and container protection with two real
-clients before enabling this configuration. Whitelist changes are separate.
+colors. Claims, party membership and container protection have not been verified
+with real players. Whitelist changes are separate.
 
 For a repeatable startup-only smoke test, run
 `python3 scripts/minecraft/smoke-vanilla.py` on a host with Docker and `gh`.
@@ -88,8 +90,8 @@ lp user PLAYER parent add trustedadmin
 ```
 
 Revoke the role with `lp user PLAYER parent remove trustedadmin`. These nodes
-must be verified against the pinned Ledger release with disposable accounts
-before activation; no role or administrator is provisioned by this draft. Keep
+have not been verified with player accounts; no role or administrator is
+provisioned by this draft. Keep
 the default player group free of admin permissions and do not grant normal
 players operator status. Ledger inspection can reveal player activity; give
 access only to selected trusted admins. The console used here is the existing

@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: minecraft-config
 data:
-  VANILLA_REFRESH_STATUS: "PENDING"
+  VANILLA_REFRESH_STATUS: "READY"
   EULA: "TRUE"
   TYPE: FABRIC
   VERSION: "26.1.2"

@@ -18,9 +18,9 @@ class VanillaConfigTest(unittest.TestCase):
             self.assertEqual(claims[key], 0)
         self.assertEqual(claims['maxPlayerClaimForceloadsPermission'], '')
 
-    def test_refresh_stays_gated_and_uses_new_public_seed(self):
+    def test_refresh_uses_new_public_seed(self):
         config = (ROOT / 'kubernetes/apps/minecraft/configmap.yaml').read_text()
-        self.assertIn('VANILLA_REFRESH_STATUS: "PENDING"', config)
+        self.assertIn('VANILLA_REFRESH_STATUS: "READY"', config)
         self.assertIn('LEVEL: forever-world', config)
         self.assertIn('SEED: "-4995054936707021313"', config)
         deployment = (ROOT / 'kubernetes/apps/minecraft/server.yaml').read_text()
