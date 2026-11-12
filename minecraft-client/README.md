@@ -18,9 +18,9 @@ pack. Keep the prior pack file before upgrading; to roll back, import it as a
 separate profile rather than overwriting local worlds or map data. Back up
 waypoints locally before switching profiles.
 
-This is a draft. A clean import, real client login and two-player claims/map
-integration test remain required before distribution. Do not publish or promise
-support until each base-pack component and included override's redistribution
+This is a draft. The operator has excluded player mod testing from this work;
+launcher import, real client login and claims/map integration remain unverified.
+Do not publish or promise support until each base-pack component and included override's redistribution
 and download rules have been checked. No private distribution location has been
 configured. Do not monetize this pack; see `CREDITS.txt` for required links and
 `FABULOUSLY-OPTIMIZED-LICENSE.txt` for the base pack's license.
