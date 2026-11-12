@@ -5,8 +5,9 @@ Minecraft runs as a private, single-instance Java Edition server on the
 uses retained local storage. Restic job assets are tracked here, but their
 installation and verification are separate host operations.
 
-The Deployment runs one replica. Its retained storage directory, bootstrap seed,
-Restic repository, and tailnet access are required runtime dependencies.
+The Deployment runs one replica. Its retained storage directory, Restic
+repository, and tailnet access are operational dependencies. Preserve the old
+bootstrap seed Secret for rollback to the previous world configuration.
 
 ## Server contract
 
@@ -44,8 +45,8 @@ set, validate startup and gameplay, and retain the prior pins for rollback.
 ## Pending vanilla refresh
 
 **Do not merge or sync while the refresh gate is pending.** The draft selects
-`world-season-2` but still references the existing seed Secret: the intended
-new seed must be supplied and wired into the Deployment before activation. The
+`world-season-2` and a new public seed in the ConfigMap. The existing seed
+Secret is retained for rollback. The
 `VANILLA_REFRESH_STATUS` CI gate remains pending until the isolated two-player
 claim and permission tests, backup restore drill, and rollout review are done.
 The old world and bootstrap Secret must remain intact.
@@ -128,6 +129,11 @@ The Restic password requires independent recovery. The local repository does
 not protect against theft, fire, or loss of the entire desktop.
 
 ## Bootstrap seed
+
+The new season uses the public seed in `minecraft-config` and does not consume
+the old bootstrap Secret. Preserve that Secret for rollback. The following
+bootstrap instructions apply only when recovering the previous configuration;
+never overwrite an existing Secret or generate a replacement casually.
 
 After the staging change has merged and Argo CD has created the `minecraft`
 namespace, create the untracked bootstrap Secret. The seed must exist before

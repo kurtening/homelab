@@ -85,12 +85,6 @@ spec:
           envFrom:
             - configMapRef:
                 name: minecraft-config
-          env:
-            - name: SEED
-              valueFrom:
-                secretKeyRef:
-                  name: minecraft-bootstrap
-                  key: seed
           ports:
             - name: minecraft
               containerPort: 25565

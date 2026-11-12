@@ -39,6 +39,7 @@ def main():
                   'FABRIC_LOADER_VERSION': '0.19.3', 'FABRIC_LAUNCHER_VERSION': '1.1.2',
                   'MODRINTH_PROJECTS': PINS, 'MODRINTH_DOWNLOAD_DEPENDENCIES': 'none',
                   'MODS': '/test/fabric-discord-notifier-0.5.0.jar', 'LEVEL': 'world-season-2',
+                  'SEED': '-4995054936707021313',
                   'INIT_MEMORY': '512M', 'MAX_MEMORY': '1G', 'ONLINE_MODE': 'FALSE',
                   'ENABLE_RCON': 'TRUE', 'RCON_PASSWORD': 'synthetic-disposable',
                   'PAUSE_WHEN_EMPTY_SECONDS': '600'}
@@ -64,7 +65,10 @@ def main():
                 raise RuntimeError('Disposable server startup timed out')
             if run(['docker', 'exec', name, 'rcon-cli', 'list'], env=env, timeout=20).returncode:
                 raise RuntimeError('Disposable RCON connectivity failed')
-            print('PASS: disposable pinned server is healthy and RCON responds')
+            properties = (data / 'server.properties').read_text().splitlines()
+            if 'level-seed=' + values['SEED'] not in properties or 'level-name=' + values['LEVEL'] not in properties:
+                raise RuntimeError('Disposable seed or level configuration mismatch')
+            print('PASS: disposable pinned server is healthy, seed and level match, and RCON responds')
             print('PENDING: real-player, claims, permissions, restart and recovery tests')
         finally:
             run(['docker', 'rm', '-f', name], env=env, timeout=40)
