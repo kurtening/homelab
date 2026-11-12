@@ -24,3 +24,10 @@ support until each base-pack component and included override's redistribution
 and download rules have been checked. No private distribution location has been
 configured. Do not monetize this pack; see `CREDITS.txt` for required links and
 `FABULOUSLY-OPTIMIZED-LICENSE.txt` for the base pack's license.
+
+The base pack includes components with custom license identifiers, including
+Sodium, Entity Culling, Crash Assistant and LambDynamicLights. Their individual
+distribution terms still need review; the base pack's BSD license does not by
+itself grant rights to every component. The two Xaero mods are linked from
+their official Modrinth CDN, not bundled, and their required attribution is
+included in the generated pack.
