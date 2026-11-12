@@ -1,0 +1,9 @@
+krof-smp 1.0.0 includes configuration derived from Fabulously Optimized.
+Fabulously Optimized: https://modrinth.com/modpack/fabulously-optimized
+
+Xaero's Minimap by Xaero: https://modrinth.com/mod/xaeros-minimap
+Xaero's World Map by Xaero: https://modrinth.com/mod/xaeros-world-map
+Open Parties and Claims by Xaero: https://modrinth.com/mod/open-parties-and-claims
+Jade: https://modrinth.com/mod/jade (CC BY-NC-SA 4.0)
+This pack is noncommercial and does not redistribute those mod binaries; the
+launcher downloads them directly from Modrinth.

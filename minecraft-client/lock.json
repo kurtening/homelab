@@ -1,0 +1,57 @@
+{
+  "version": "1.0.0",
+  "base": {
+    "version_id": "glnu8pns",
+    "sha512": "a2e6ae480568187d27ea8c88f0aaa74053da22aaa8764ca178cb416ed303bc010d79b8d6a0916a391c16d6b588358c98a39afb64f837607607bcc485ed24c27c"
+  },
+  "additions": [
+    {
+      "project_id": "gF3BGWvG",
+      "version_id": "oT1wWKmM",
+      "version": "fabric-26.1.2-0.30.3",
+      "filename": "open-parties-and-claims-fabric-26.1.2-0.30.3.jar",
+      "url": "https://cdn.modrinth.com/data/gF3BGWvG/versions/oT1wWKmM/open-parties-and-claims-fabric-26.1.2-0.30.3.jar",
+      "size": 1886967,
+      "hashes": {
+        "sha1": "2ece7916c2db3eacd4141832cc249088016c68b5",
+        "sha512": "fe10be7dd9df3bf69407f7df2a9adb9c615e0bd9806bac4c5417be3dd2d2d0b178163db85a6877eb1c6b3aa0ca08dd504724e28b55de4d6b95499f88728c5211"
+      }
+    },
+    {
+      "project_id": "1bokaNcj",
+      "version_id": "kWf58HtH",
+      "version": "fabric-26.1.2-26.5.0",
+      "filename": "xaerominimap-fabric-26.1.2-26.5.0.jar",
+      "url": "https://cdn.modrinth.com/data/1bokaNcj/versions/kWf58HtH/xaerominimap-fabric-26.1.2-26.5.0.jar",
+      "size": 2216048,
+      "hashes": {
+        "sha512": "5faeb5fad6059d7d7a4d2c8159ecf8e641700ea09652e6a01fcc9e3498654ba5aa778648d57cdd96c04dabe1aa80f2699490facaf67f8f8ada0afe86c74a00e2",
+        "sha1": "f7ed556df35e06ae476c76d98c41ba42e999fbb1"
+      }
+    },
+    {
+      "project_id": "NcUtCpym",
+      "version_id": "ZpUBkoFm",
+      "version": "fabric-26.1.2-1.47.2",
+      "filename": "xaeroworldmap-fabric-26.1.2-1.47.2.jar",
+      "url": "https://cdn.modrinth.com/data/NcUtCpym/versions/ZpUBkoFm/xaeroworldmap-fabric-26.1.2-1.47.2.jar",
+      "size": 1478852,
+      "hashes": {
+        "sha512": "500c9b3b94d94b13115bed70f14d8e793c2dddfc8988f026599deec80bcf9ebbc1a8e0c5aad874b1fd6da7fc3210fd85163dd1aa4e7c20cf54ae83747288ddd4",
+        "sha1": "876d5554fa6771211a4809a972b62fd13d698672"
+      }
+    },
+    {
+      "project_id": "nvQzSEkH",
+      "version_id": "23eHNK54",
+      "version": "26.1.2+fabric",
+      "filename": "Jade-mc26.1-Fabric-26.1.2.jar",
+      "url": "https://cdn.modrinth.com/data/nvQzSEkH/versions/23eHNK54/Jade-mc26.1-Fabric-26.1.2.jar",
+      "size": 1012163,
+      "hashes": {
+        "sha512": "41f0357c1c23406d92e64c300aba8b07d264d94bc89467b6a1bb2982facc1187c94f681790a173fb106f1411061b38ba3c7fb68f195c3e75cb9b74321487552e",
+        "sha1": "82a68c468e70878664460b94c32b8510274db9e2"
+      }
+    }
+  ]
+}
