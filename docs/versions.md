@@ -42,8 +42,13 @@ verification or live-installation report. It performs no network requests.
 | Minecraft mod: fabric-api | `lOQ4tyDD` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
 | Minecraft mod: fabric-language-kotlin | `Pd0xrHCw` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
 | Minecraft mod: ferrite-core | `d5ddUdiB` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
+| Minecraft mod: forge-config-api-port | `jUe0ucoE` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
 | Minecraft mod: leaves-us-in-peace | `OZtHERvr` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
+| Minecraft mod: ledger | `NopA8uYe` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
 | Minecraft mod: lithium | `fQBdPR1m` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
+| Minecraft mod: luckperms | `Nq5UZXxA` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
+| Minecraft mod: open-parties-and-claims | `oT1wWKmM` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
+| Minecraft mod: spark | `e3hsPc1o` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
 | Minecraft: FABRIC_LAUNCHER_VERSION | `1.1.2` | version | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
 | Minecraft: FABRIC_LOADER_VERSION | `0.19.3` | version | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
 | Minecraft: VERSION | `26.1.2` | version | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |

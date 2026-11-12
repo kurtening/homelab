@@ -30,11 +30,64 @@ exact Modrinth releases at startup:
 | FerriteCore | `9.0.0` | `d5ddUdiB` |
 | Leaves Us In Peace | `1.12.0` | `OZtHERvr` |
 | Fabric Language Kotlin | `1.13.12+kotlin.2.4.0` | `Pd0xrHCw` |
+| Open Parties and Claims | `0.30.3` | `oT1wWKmM` |
+| Forge Config API Port | `26.1.5` | `jUe0ucoE` |
+| Ledger | `1.3.22` | `NopA8uYe` |
+| LuckPerms | `5.5.54` | `Nq5UZXxA` |
+| spark | `1.10.187` | `e3hsPc1o` |
 
 Discord Notifier `0.5.0` is separately pinned to its GitHub release and verified
 by SHA-256 before use. Minecraft, Fabric, the container image, and every mod are intentionally pinned.
 Treat upgrades as reviewed migrations: take a fresh backup, change one version
 set, validate startup and gameplay, and retain the prior pins for rollback.
+
+## Pending vanilla refresh
+
+**Do not merge or sync while the refresh gate is pending.** The draft selects
+`world-season-2` but still references the existing seed Secret: the intended
+new seed must be supplied and wired into the Deployment before activation. The
+`VANILLA_REFRESH_STATUS` CI gate remains pending until the isolated two-player
+claim and permission tests, backup restore drill, and rollout review are done.
+The old world and bootstrap Secret must remain intact.
+
+The claims configuration is copied into `/data/config` at pod startup and is
+managed by Git. Defaults may be expanded by the mod; local edits to this file
+are overwritten on restart. It sets 256 claim chunks, zero forceloads, the
+default party system and LuckPerms. The default player configuration grants
+party members full access; player-facing changes are limited to claim names and
+colors. Verify claims, party membership and container protection with two real
+clients before enabling this configuration. Whitelist changes are separate.
+
+An isolated test located OPAC data beneath the level directory, Ledger's SQLite
+database at `/data/world-season-2/ledger.sqlite`, and LuckPerms' H2 database in
+`/data/mods/luckperms/`. Confirm these paths after any mod update. The existing
+backup covers the full data directory; verify an actual recent snapshot and
+restore it to an isolated directory, then demonstrate startup and saving before
+the production switch. A Git revert does not restore player, claim or database
+state. To roll back, stop player activity, preserve the new state, revert the
+level and seed changes, and restore matching world and global data from the
+verified snapshot while the server is stopped. Never delete the old world or
+run a second server against the live data.
+
+Use the server console only for trusted administrator bootstrap. The proposed
+least-privilege Ledger inspection role is created with these console commands;
+replace `PLAYER` locally, never in Git:
+
+```text
+lp creategroup trustedadmin
+lp group trustedadmin permission set ledger.commands.root true
+lp group trustedadmin permission set ledger.commands.inspect true
+lp group trustedadmin permission set ledger.commands.search true
+lp user PLAYER parent add trustedadmin
+```
+
+Revoke the role with `lp user PLAYER parent remove trustedadmin`. These nodes
+must be verified against the pinned Ledger release with disposable accounts
+before activation; no role or administrator is provisioned by this draft. Keep
+the default player group free of admin permissions and do not grant normal
+players operator status. Ledger inspection can reveal player activity; give
+access only to selected trusted admins. The console used here is the existing
+server console or an authorized RCON client, not the blocked admin-console draft.
 
 ## Manual prerequisites
 

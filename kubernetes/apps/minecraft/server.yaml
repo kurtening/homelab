@@ -51,6 +51,18 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       initContainers:
+        - name: claims-config
+          image: docker.io/itzg/minecraft-server:2026.8.2-java25@sha256:efa878ddb49cf5251b2e5f2ad71b08fd2f7236c1f7907433f6697258b31d2ce4
+          command: ["sh", "-ec", "mkdir -p /data/config && cp /claims/openpartiesandclaims-server.toml /data/config/openpartiesandclaims-server.toml"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 128Mi}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: claims-config, mountPath: /claims, readOnly: true}
         - name: discord-mod
           image: docker.io/itzg/minecraft-server:2026.8.2-java25@sha256:efa878ddb49cf5251b2e5f2ad71b08fd2f7236c1f7907433f6697258b31d2ce4
           command: ["sh", "-ec"]
@@ -131,6 +143,9 @@ spec:
             - {name: discord-config, mountPath: /app, readOnly: true}
             - {name: discord-secret, mountPath: /run/secrets/discord, readOnly: true}
       volumes:
+        - name: claims-config
+          configMap:
+            name: minecraft-claims-config
         - name: data
           persistentVolumeClaim:
             claimName: minecraft-data
