@@ -35,6 +35,7 @@ verification or live-installation report. It performs no network requests.
 | Development tool: terragrunt | `1.1.1` | version; not host installation | [mise.toml](../mise.toml) |
 | GitHub Action | `actions/checkout@v7.0.1` | tag only | [.github/workflows/iac-validation.yml](../.github/workflows/iac-validation.yml) |
 | GitHub Action | `actions/checkout@v7.0.1` | tag only | [.github/workflows/kubernetes-validation.yaml](../.github/workflows/kubernetes-validation.yaml) |
+| GitHub Action | `actions/checkout@v7.0.1` | tag only | [.github/workflows/minecraft-client-validation.yaml](../.github/workflows/minecraft-client-validation.yaml) |
 | GitHub Action | `gruntwork-io/terragrunt-action@v3.4.1` | tag only | [.github/workflows/iac-validation.yml](../.github/workflows/iac-validation.yml) |
 | GitHub Action | `jdx/mise-action@v4.3.0` | tag only | [.github/workflows/kubernetes-validation.yaml](../.github/workflows/kubernetes-validation.yaml) |
 | Helm chart: tailscale-operator | `1.98.9` | chart version | [kubernetes/clusters/krof-desktop/tailscale-operator-application.yaml](../kubernetes/clusters/krof-desktop/tailscale-operator-application.yaml) |
