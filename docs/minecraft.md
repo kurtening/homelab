@@ -45,7 +45,7 @@ set, validate startup and gameplay, and retain the prior pins for rollback.
 ## Pending vanilla refresh
 
 **Do not merge or sync while the refresh gate is pending.** The draft selects
-`world-season-2` and a new public seed in the ConfigMap. The existing seed
+`forever-world` and a new public seed in the ConfigMap. The existing seed
 Secret is retained for rollback. The
 `VANILLA_REFRESH_STATUS` CI gate remains pending until the isolated two-player
 claim and permission tests, backup restore drill, and rollout review are done.
@@ -65,7 +65,7 @@ It uses a temporary world, synthetic credentials, bounded CPU and memory, and
 no published ports. It does not test real-player protection or backup recovery.
 
 An isolated test located OPAC data beneath the level directory, Ledger's SQLite
-database at `/data/world-season-2/ledger.sqlite`, and LuckPerms' H2 database in
+database beneath the level directory (expected at `/data/forever-world/ledger.sqlite`), and LuckPerms' H2 database in
 `/data/mods/luckperms/`. Confirm these paths after any mod update. The existing
 backup covers the full data directory; verify an actual recent snapshot and
 restore it to an isolated directory, then demonstrate startup and saving before

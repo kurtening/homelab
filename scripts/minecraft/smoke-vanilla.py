@@ -38,7 +38,7 @@ def main():
         values = {'EULA': 'TRUE', 'TYPE': 'FABRIC', 'VERSION': '26.1.2',
                   'FABRIC_LOADER_VERSION': '0.19.3', 'FABRIC_LAUNCHER_VERSION': '1.1.2',
                   'MODRINTH_PROJECTS': PINS, 'MODRINTH_DOWNLOAD_DEPENDENCIES': 'none',
-                  'MODS': '/test/fabric-discord-notifier-0.5.0.jar', 'LEVEL': 'world-season-2',
+                  'MODS': '/test/fabric-discord-notifier-0.5.0.jar', 'LEVEL': 'forever-world',
                   'SEED': '-4995054936707021313',
                   'INIT_MEMORY': '512M', 'MAX_MEMORY': '1G', 'ONLINE_MODE': 'FALSE',
                   'ENABLE_RCON': 'TRUE', 'RCON_PASSWORD': 'synthetic-disposable',

@@ -21,7 +21,7 @@ class VanillaConfigTest(unittest.TestCase):
     def test_refresh_stays_gated_and_uses_new_public_seed(self):
         config = (ROOT / 'kubernetes/apps/minecraft/configmap.yaml').read_text()
         self.assertIn('VANILLA_REFRESH_STATUS: "PENDING"', config)
-        self.assertIn('LEVEL: world-season-2', config)
+        self.assertIn('LEVEL: forever-world', config)
         self.assertIn('SEED: "-4995054936707021313"', config)
         deployment = (ROOT / 'kubernetes/apps/minecraft/server.yaml').read_text()
         self.assertNotIn('name: minecraft-bootstrap', deployment)
