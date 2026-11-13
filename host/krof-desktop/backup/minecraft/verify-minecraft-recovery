@@ -17,6 +17,8 @@ SOURCE = '/mnt/data-drive-2tb/homelab/minecraft'
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('snapshot', help='explicit snapshot ID, not latest')
+    parser.add_argument('--world', required=True, choices=('forever-world', 'world'),
+                        help='exact world to verify: current forever-world or legacy world')
     arguments = parser.parse_args()
     if not re.fullmatch(r'[0-9a-f]{8,64}', arguments.snapshot):
         raise RuntimeError('an explicit hexadecimal snapshot ID is required')
@@ -52,8 +54,14 @@ def main():
     if result.returncode != 0:
         raise RuntimeError('Restic restore/verification failed; inspect protected artifacts locally')
     # Restic can preserve absolute source paths or produce a relative layout.
-    candidates = list((directory / 'restored').rglob('world/level.dat'))
-    if len(candidates) != 1 or not candidates[0].is_file() or candidates[0].stat().st_size == 0:
+    restored = directory / 'restored'
+    layouts = (restored / arguments.world / 'level.dat',
+               restored / SOURCE.lstrip('/') / arguments.world / 'level.dat')
+    candidates = [candidate for candidate in layouts if candidate.exists() or candidate.is_symlink()]
+    if (len(candidates) != 1 or candidates[0].parent.is_symlink()
+            or not candidates[0].is_file() or candidates[0].is_symlink()
+            or not candidates[0].resolve().is_relative_to(restored.resolve())
+            or candidates[0].stat().st_size == 0):
         raise RuntimeError('expected exactly one nonempty restored world metadata file')
     with gzip.open(candidates[0], 'rb') as world:
         while world.read(1024 * 1024):
