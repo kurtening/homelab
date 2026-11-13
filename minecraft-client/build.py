@@ -32,6 +32,18 @@ def verified(data, size, hashes):
         raise ValueError('missing SHA-512')
 
 
+def remove_exclusions(files, exclusions):
+    files = list(files)
+    for exclusion in exclusions:
+        expected = '/data/%s/versions/%s/' % (exclusion['project_id'], exclusion['version_id'])
+        matches = [item for item in files if any(
+            urllib.parse.urlsplit(url).path.startswith(expected) for url in item['downloads'])]
+        if len(matches) != 1:
+            raise ValueError('expected exactly one excluded base mod')
+        files.remove(matches[0])
+    return files
+
+
 def main():
     base = json.loads(fetch('https://api.modrinth.com/v2/version/' + LOCK['base']['version_id']))
     primary = next(f for f in base['files'] if f['primary'])
@@ -41,6 +53,7 @@ def main():
     index = json.loads(source.read('modrinth.index.json'))
     if index['dependencies'] != {'fabric-loader': '0.19.5', 'minecraft': '26.1.2'}:
         raise ValueError('unexpected base game or loader')
+    index['files'] = remove_exclusions(index['files'], LOCK['exclusions'])
     paths = {item['path'].lower() for item in index['files']}
     existing_urls = [url for item in index['files'] for url in item['downloads']]
     for mod in LOCK['additions']:
