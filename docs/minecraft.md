@@ -340,17 +340,40 @@ the selected snapshot includes the intended full data root. Restore that
 **explicit snapshot ID** using the reviewed helper from that same host directory:
 
 ```bash
-sudo python3 ./verify-minecraft-recovery SNAPSHOT_ID
+sudo python3 ./verify-minecraft-recovery SNAPSHOT_ID --world forever-world
 ```
 
 It checks the snapshot's host/tag/source contract and available space, restores
 with verification into a new mode-0700 directory on the verified backup device,
-locates nonempty `world/level.dat` without assuming an absolute restore layout,
+locates nonempty `forever-world/level.dat` without assuming an absolute restore layout,
 and gzip-tests it without printing contents. Retain protected drill output until
 cleanup is explicitly approved.
 This checks verified file retrieval and world metadata, **not** isolated server
 startup, gameplay, or complete host-loss recovery. Never mount restored data
 into production or start a second server against the live world.
+
+For a snapshot of the old test world, pass `--world world` instead. The active
+world preflight still checks the live `forever-world`. Selecting the old world
+must never be interpreted as verification of the new one.
+
+### Updating installed host tools
+
+The backup job, service and timer are installed separately from Git. The two
+recovery checkers are run from a reviewed private copy; they are not installed
+by `install-minecraft-backup`. To use updated checkers, copy both files from the
+same reviewed Git revision into a mode-0700 directory on `krof-desktop`, verify
+their SHA-256 hashes against that revision, and invoke the verifier there with
+interactive sudo. Do not overwrite installed backup files just to update these
+checkers.
+
+If a future reviewed change actually modifies the installed job or units, first
+verify the host and mounts, ensure the service is inactive, compare installed
+files with their expected old revision, and retain root-owned copies in a new
+mode-0700 backup directory. Replace only the specifically reviewed files using
+root-owned temporary files and atomic rename, validate shell syntax and units,
+then reload systemd only if unit files changed. Keep the old copies for rollback
+and never start a backup as part of the upgrade. Stop rather than overwriting
+unexpected files or active jobs.
 
 Save the existing `/etc/restic/minecraft-password` independently as
 **Homelab — Minecraft Restic recovery password** in the vault, distinct from
