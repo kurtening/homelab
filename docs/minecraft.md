@@ -42,15 +42,16 @@ by SHA-256 before use. Minecraft, Fabric, the container image, and every mod are
 Treat upgrades as reviewed migrations: take a fresh backup, change one version
 set, validate startup and gameplay, and retain the prior pins for rollback.
 
-## Pending vanilla refresh
+## Current world and recovery
 
-The refresh selects `forever-world` and a new public seed in the ConfigMap. The
-existing seed Secret is retained for rollback. A snapshot was restored into a
-separate location and a copy started and completed a save flush without
-networking. The operator has excluded player mod tests from this work; the
-behavior of claims and permissions with real players remains unverified.
-Before an explicitly requested merge, recheck backup freshness, no active backup
-and the rollout window; the CI gate is not proof of those live conditions.
+The live world is `forever-world` with its public seed in the ConfigMap. The
+existing seed Secret is retained for rollback. On November 13, 2026, a
+snapshot was verified to include `forever-world`, restored to a separate
+location, and a separate copy started and completed a save flush without
+networking. This is not a human gameplay or production-restore test. The
+operator has excluded player mod tests from this work; claims and permissions
+with real players remain unverified. Before changes, recheck backup freshness,
+no active backup and the rollout window; CI does not prove live conditions.
 The old world and bootstrap Secret must remain intact.
 
 The claims configuration is copied into `/data/config` at pod startup and is
@@ -69,9 +70,9 @@ no published ports. It does not test real-player protection or backup recovery.
 An isolated test located OPAC data beneath the level directory, Ledger's SQLite
 database beneath the level directory (expected at `/data/forever-world/ledger.sqlite`), and LuckPerms' H2 database in
 `/data/mods/luckperms/`. Confirm these paths after any mod update. The existing
-backup covers the full data directory; verify an actual recent snapshot and
-restore it to an isolated directory, then demonstrate startup and saving before
-the production switch. A Git revert does not restore player, claim or database
+backup covers the full data directory. Before recovery or risky changes, verify
+an actual recent snapshot and restore it to an isolated directory. A Git revert
+does not restore player, claim or database
 state. To roll back, stop player activity, preserve the new state, revert the
 level and seed changes, and restore matching world and global data from the
 verified snapshot while the server is stopped. Never delete the old world or
@@ -91,7 +92,7 @@ lp user PLAYER parent add trustedadmin
 
 Revoke the role with `lp user PLAYER parent remove trustedadmin`. These nodes
 have not been verified with player accounts; no role or administrator is
-provisioned by this draft. Keep
+provisioned by this configuration. Keep
 the default player group free of admin permissions and do not grant normal
 players operator status. Ledger inspection can reveal player activity; give
 access only to selected trusted admins. The console used here is the existing
@@ -116,10 +117,10 @@ backup service is missing. The November 1, 2026 read-only host check found an
 existing repository and a working dedicated password, but **zero matching
 snapshots** and no installed backup executable/service/timer. That is not backup
 coverage. The operator subsequently installed the reviewed job, completed manual
-snapshot `71a80f59` at 21:39:47 Manila, passed isolated file/world-gzip verification
-and independent password comparison, and enabled the timer for November 2 at
-05:30 Manila. Scheduled execution and server startup/gameplay recovery remain
-unverified. Preserve the existing password and repository.
+snapshot and enabled the timer. A November 13 `forever-world` snapshot passed
+isolated file verification and an offline startup/save drill; human gameplay
+and full host-loss recovery remain unverified. Preserve the existing password,
+repository, and protected recovery artifacts.
 
 For a genuinely new host, provision a dedicated password and repository only
 after verifying both are absent and the expected independent backup device is
