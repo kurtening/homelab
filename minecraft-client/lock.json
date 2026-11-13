@@ -4,6 +4,13 @@
     "version_id": "glnu8pns",
     "sha512": "a2e6ae480568187d27ea8c88f0aaa74053da22aaa8764ca178cb416ed303bc010d79b8d6a0916a391c16d6b588358c98a39afb64f837607607bcc485ed24c27c"
   },
+  "exclusions": [
+    {
+      "project_id": "NNAgCjsB",
+      "version_id": "VhQ51u7a",
+      "reason": "Private pack distribution terms were not clear"
+    }
+  ],
   "additions": [
     {
       "project_id": "gF3BGWvG",
