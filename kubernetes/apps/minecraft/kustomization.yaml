@@ -3,6 +3,15 @@ kind: Kustomization
 
 namespace: minecraft
 
+configMapGenerator:
+  - name: minecraft-claims-config
+    files:
+      - claims/openpartiesandclaims-server.toml
+  - name: minecraft-discord
+    files:
+      - discord/discord-relay.py
+      - discord/player-discord-notifier.json
+
 resources:
   - namespace.yaml
   - configmap.yaml

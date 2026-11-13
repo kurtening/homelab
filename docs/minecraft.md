@@ -5,8 +5,9 @@ Minecraft runs as a private, single-instance Java Edition server on the
 uses retained local storage. Restic job assets are tracked here, but their
 installation and verification are separate host operations.
 
-The Deployment runs one replica. Its retained storage directory, bootstrap seed,
-Restic repository, and tailnet access are required runtime dependencies.
+The Deployment runs one replica. Its retained storage directory, Restic
+repository, and tailnet access are operational dependencies. Preserve the old
+bootstrap seed Secret for rollback to the previous world configuration.
 
 ## Server contract
 
@@ -18,7 +19,7 @@ Restic repository, and tailnet access are required runtime dependencies.
 - Tailscale-only TCP access on port `25565`
 - one-player sleep and fast leaf decay
 - native pause after the server has been empty for ten minutes
-- the Excalibur `26.1_01` resource pack is required for all players
+- optional [Fresh Textures 2.0.1.1](https://modrinth.com/resourcepack/fresh-textures/version/w7BtJ3hF) adds variations to familiar planks, ores, and foliage
 
 The client pack is not installed on the server. The server downloads these
 exact Modrinth releases at startup:
@@ -29,10 +30,72 @@ exact Modrinth releases at startup:
 | Lithium | `0.24.6` | `fQBdPR1m` |
 | FerriteCore | `9.0.0` | `d5ddUdiB` |
 | Leaves Us In Peace | `1.12.0` | `OZtHERvr` |
+| Fabric Language Kotlin | `1.13.12+kotlin.2.4.0` | `Pd0xrHCw` |
+| Open Parties and Claims | `0.30.3` | `oT1wWKmM` |
+| Forge Config API Port | `26.1.5` | `jUe0ucoE` |
+| Ledger | `1.3.22` | `NopA8uYe` |
+| LuckPerms | `5.5.54` | `Nq5UZXxA` |
+| spark | `1.10.187` | `e3hsPc1o` |
 
-Minecraft, Fabric, the container image, and every mod are intentionally pinned.
+Discord Notifier `0.5.0` is separately pinned to its GitHub release and verified
+by SHA-256 before use. Minecraft, Fabric, the container image, and every mod are intentionally pinned.
 Treat upgrades as reviewed migrations: take a fresh backup, change one version
 set, validate startup and gameplay, and retain the prior pins for rollback.
+
+## Pending vanilla refresh
+
+The refresh selects `forever-world` and a new public seed in the ConfigMap. The
+existing seed Secret is retained for rollback. A snapshot was restored into a
+separate location and a copy started and completed a save flush without
+networking. The operator has excluded player mod tests from this work; the
+behavior of claims and permissions with real players remains unverified.
+Before an explicitly requested merge, recheck backup freshness, no active backup
+and the rollout window; the CI gate is not proof of those live conditions.
+The old world and bootstrap Secret must remain intact.
+
+The claims configuration is copied into `/data/config` at pod startup and is
+managed by Git. Defaults may be expanded by the mod; local edits to this file
+are overwritten on restart. It sets 256 claim chunks, zero forceloads, the
+default party system and LuckPerms. The default player configuration grants
+party members full access; player-facing changes are limited to claim names and
+colors. Claims, party membership and container protection have not been verified
+with real players. Whitelist changes are separate.
+
+For a repeatable startup-only smoke test, run
+`python3 scripts/minecraft/smoke-vanilla.py` on a host with Docker and `gh`.
+It uses a temporary world, synthetic credentials, bounded CPU and memory, and
+no published ports. It does not test real-player protection or backup recovery.
+
+An isolated test located OPAC data beneath the level directory, Ledger's SQLite
+database beneath the level directory (expected at `/data/forever-world/ledger.sqlite`), and LuckPerms' H2 database in
+`/data/mods/luckperms/`. Confirm these paths after any mod update. The existing
+backup covers the full data directory; verify an actual recent snapshot and
+restore it to an isolated directory, then demonstrate startup and saving before
+the production switch. A Git revert does not restore player, claim or database
+state. To roll back, stop player activity, preserve the new state, revert the
+level and seed changes, and restore matching world and global data from the
+verified snapshot while the server is stopped. Never delete the old world or
+run a second server against the live data.
+
+Use the server console only for trusted administrator bootstrap. The proposed
+least-privilege Ledger inspection role is created with these console commands;
+replace `PLAYER` locally, never in Git:
+
+```text
+lp creategroup trustedadmin
+lp group trustedadmin permission set ledger.commands.root true
+lp group trustedadmin permission set ledger.commands.inspect true
+lp group trustedadmin permission set ledger.commands.search true
+lp user PLAYER parent add trustedadmin
+```
+
+Revoke the role with `lp user PLAYER parent remove trustedadmin`. These nodes
+have not been verified with player accounts; no role or administrator is
+provisioned by this draft. Keep
+the default player group free of admin permissions and do not grant normal
+players operator status. Ledger inspection can reveal player activity; give
+access only to selected trusted admins. The console used here is the existing
+server console or an authorized RCON client, not the blocked admin-console draft.
 
 ## Manual prerequisites
 
@@ -68,6 +131,11 @@ The Restic password requires independent recovery. The local repository does
 not protect against theft, fire, or loss of the entire desktop.
 
 ## Bootstrap seed
+
+The new season uses the public seed in `minecraft-config` and does not consume
+the old bootstrap Secret. Preserve that Secret for rollback. The following
+bootstrap instructions apply only when recovering the previous configuration;
+never overwrite an existing Secret or generate a replacement casually.
 
 After the staging change has merged and Argo CD has created the `minecraft`
 namespace, create the untracked bootstrap Secret. The seed must exist before
@@ -125,19 +193,18 @@ minecraft.<tailnet>.ts.net:25565
 
 Use the private tailnet suffix from the Tailscale admin console; never commit it.
 
-On connection, clients download the pinned Excalibur ZIP directly from Modrinth
-and must accept it to join. The configured SHA-1 is for that exact release;
-verify the new ZIP and hash together before updating either. If the download is
-unavailable or rejected, players cannot join until it is available or the pack
-settings are reverted through GitOps. Basic textures work with unmodified Java
-clients; some visual features require compatible client-side mods. Test both
+The server offers Fresh Textures on join. Choose **Prompt** under **Server Resource
+Packs** in the multiplayer server entry to decide whether to download it.
+Choose **Disabled** to join with your own resource packs. Shaders are a personal
+client setting. When updating the pack, verify the ZIP against the pinned SHA-1.
+Test both accepting and declining the pack with
 the documented Fabulously Optimized client and a vanilla client before merging.
 Use an isolated server and world for these tests. Change the Deployment's
 resource-pack revision annotation when updating the pack so Argo CD rolls the
 pod and the container reads the updated ConfigMap.
 The server rollout restarts Minecraft; verify a current backup and arrange a
-quiet window before merging. To roll back, revert the three resource-pack
-settings and wait for Argo CD to reconcile the resulting restart.
+quiet window before merging. To roll back, revert the pack settings
+and Deployment revision annotation and wait for Argo CD to reconcile the resulting restart.
 
 ## Operators
 
@@ -157,6 +224,61 @@ kubectl --namespace minecraft exec "${minecraft_pod}" \
 ```
 
 The RCON port is cluster-internal and is not exposed by a Service.
+
+## Discord player notifications
+
+The Fabric notifier sends join and leave events to a loopback relay; the relay
+alone holds the dedicated Discord webhook. No chat, IP addresses, or server logs
+are forwarded. Delivery is best effort; failures are logged without the URL or
+message. The relay is a separate container, so Discord failures must not stop
+Minecraft. A missing or invalid webhook disables delivery without making the
+relay or game pod unready; the relay reads the projected credential on each
+event. An isolated K3s pod with a dummy game container and the real relay stayed
+ready with the Secret absent and after an invalid Secret was projected. On a
+separate disposable Minecraft world, a synthetic 26.1.2 client joined and left
+through the pinned notifier; the relay accepted both events and did not forward
+a synthetic chat message. The client also joined and left while the webhook was
+missing or invalid and while the relay was stopped. The relay's outbound send
+was mocked; actual Discord delivery and a real-player test remain pending.
+
+**Activation gate:** verify the encrypted Secret contains the intended dedicated
+webhook and that the protected render succeeds before merging or syncing. To
+replace a `PENDING` placeholder, open the channel's settings in Discord, choose
+**Integrations → Webhooks**, create a webhook and copy its URL. In a private
+terminal on the administration laptop, from this checkout on the reviewed
+branch, enter the absolute path of the existing age identity when prompted:
+
+```bash
+read -r -p 'Absolute path to your existing age identity: ' SOPS_AGE_KEY_FILE
+export SOPS_AGE_KEY_FILE
+mise exec -- python3 scripts/minecraft/configure-discord-secret.py
+mise exec -- sops filestatus kubernetes/secrets/minecraft-discord/webhook.sops.yaml
+mise exec -- ./scripts/validate-kubernetes.sh
+```
+
+Paste the webhook URL into each of the two hidden prompts. The helper validates
+and encrypts it, compares the decrypted value silently, and refuses to replace a
+non-placeholder credential. Its temporary plaintext exists only in a mode-0700
+directory outside the worktree. Never paste the URL into chat, shell commands,
+Git, or logs. Check that `sops filestatus` reports `"encrypted":true`, review
+and commit only ciphertext, and verify the Secret Application is healthy before
+the Minecraft rollout. Confirm a current backup, no active backup, and a quiet
+window before merging because the pod restarts.
+
+Verify join and leave with a player and confirm no chat or addresses are sent.
+For rollback, first make a GitOps change setting `MODS: ""` while leaving the
+Kotlin pin and remaining notifier configuration intact. After reconciliation
+and restart, confirm the notifier jar is absent from the retained mods directory
+and the server is healthy. Only then revert the remaining notifier changes.
+Simply deleting the `MODS` setting skips the image's variable-list cleanup and
+can leave the jar behind. A disposable test of the pinned image's `mcopy`
+helper confirmed that an empty list removes its managed jar while leaving an
+unmanaged jar intact. A separate disposable-world test confirmed that the
+pinned server started healthy with the notifier, restarted healthy with the
+notifier jar removed while retaining Kotlin, and restarted healthy again after
+removing Kotlin from the project list. The test did not verify Kotlin's jar was
+removed. Retain the encrypted Secret and separately revoke the Discord webhook
+if no longer needed.
 
 ## Backup installation and verification
 
@@ -218,17 +340,40 @@ the selected snapshot includes the intended full data root. Restore that
 **explicit snapshot ID** using the reviewed helper from that same host directory:
 
 ```bash
-sudo python3 ./verify-minecraft-recovery SNAPSHOT_ID
+sudo python3 ./verify-minecraft-recovery SNAPSHOT_ID --world forever-world
 ```
 
 It checks the snapshot's host/tag/source contract and available space, restores
 with verification into a new mode-0700 directory on the verified backup device,
-locates nonempty `world/level.dat` without assuming an absolute restore layout,
+locates nonempty `forever-world/level.dat` without assuming an absolute restore layout,
 and gzip-tests it without printing contents. Retain protected drill output until
 cleanup is explicitly approved.
 This checks verified file retrieval and world metadata, **not** isolated server
 startup, gameplay, or complete host-loss recovery. Never mount restored data
 into production or start a second server against the live world.
+
+For a snapshot of the old test world, pass `--world world` instead. The active
+world preflight still checks the live `forever-world`. Selecting the old world
+must never be interpreted as verification of the new one.
+
+### Updating installed host tools
+
+The backup job, service and timer are installed separately from Git. The two
+recovery checkers are run from a reviewed private copy; they are not installed
+by `install-minecraft-backup`. To use updated checkers, copy both files from the
+same reviewed Git revision into a mode-0700 directory on `krof-desktop`, verify
+their SHA-256 hashes against that revision, and invoke the verifier there with
+interactive sudo. Do not overwrite installed backup files just to update these
+checkers.
+
+If a future reviewed change actually modifies the installed job or units, first
+verify the host and mounts, ensure the service is inactive, compare installed
+files with their expected old revision, and retain root-owned copies in a new
+mode-0700 backup directory. Replace only the specifically reviewed files using
+root-owned temporary files and atomic rename, validate shell syntax and units,
+then reload systemd only if unit files changed. Keep the old copies for rollback
+and never start a backup as part of the upgrade. Stop rather than overwriting
+unexpected files or active jobs.
 
 Save the existing `/etc/restic/minecraft-password` independently as
 **Homelab — Minecraft Restic recovery password** in the vault, distinct from

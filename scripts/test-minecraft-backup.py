@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run the backup with synthetic commands; never access a cluster or repository."""
 import os
+import runpy
 from pathlib import Path
 import subprocess
 import tempfile
@@ -164,15 +165,24 @@ elif 'restore' in args:
     if mode == 'restore-failure': sys.exit(1)
     destination = Path(args[args.index('--target') + 1])
     if mode == 'absolute': destination /= 'mnt/data-drive-2tb/homelab/minecraft'
-    destination /= 'world'
-    destination.mkdir(parents=True)
-    if mode != 'missing':
-        (destination / 'level.dat').write_bytes(b'corrupt' if mode == 'corrupt' else gzip.compress(b'synthetic NBT fixture'))
+    worlds = ['world', 'forever-world'] if mode == 'both' else ['world' if mode == 'old-only' else 'forever-world']
+    for world in worlds:
+        level = destination / world
+        level.mkdir(parents=True)
+        if mode != 'missing':
+            (level / 'level.dat').write_bytes(b'' if mode == 'empty' else b'corrupt' if mode == 'corrupt' else gzip.compress(b'synthetic NBT fixture'))
+    if mode == 'ambiguous':
+        duplicate = destination / 'mnt/data-drive-2tb/homelab/minecraft/forever-world'
+        duplicate.mkdir(parents=True)
+        (duplicate / 'level.dat').write_bytes(gzip.compress(b'synthetic NBT fixture'))
+    if mode == 'symlink':
+        (destination / 'forever-world/level.dat').unlink()
+        (destination / 'forever-world/level.dat').symlink_to('/etc/passwd')
 ''')
         restic.chmod(0o700)
 
-    def run_recovery(self, mode, snapshot='12345678'):
-        return subprocess.run(['python3', str(self.helper), snapshot], capture_output=True,
+    def run_recovery(self, mode, snapshot='12345678', world='forever-world'):
+        return subprocess.run(['python3', str(self.helper), snapshot, '--world', world], capture_output=True,
                               env=dict(os.environ, MODE=mode, PATH=str(self.root) + os.pathsep + os.environ['PATH']),
                               timeout=15)
 
@@ -184,7 +194,7 @@ elif 'restore' in args:
                 self.assertIn(b'production unchanged', result.stdout)
 
     def test_corrupt_missing_and_failed_restores_fail(self):
-        for mode in ['corrupt', 'missing', 'restore-failure']:
+        for mode in ['corrupt', 'missing', 'empty', 'ambiguous', 'symlink', 'restore-failure']:
             with self.subTest(mode=mode):
                 self.assertNotEqual(self.run_recovery(mode).returncode, 0)
 
@@ -195,12 +205,35 @@ elif 'restore' in args:
     def test_latest_is_rejected(self):
         self.assertNotEqual(self.run_recovery('relative', snapshot='latest').returncode, 0)
 
+    def test_world_selection_is_explicit_and_safe(self):
+        self.assertEqual(self.run_recovery('both', world='forever-world').returncode, 0)
+        self.assertEqual(self.run_recovery('both', world='world').returncode, 0)
+        self.assertEqual(self.run_recovery('old-only', world='world').returncode, 0)
+        self.assertNotEqual(self.run_recovery('old-only', world='forever-world').returncode, 0)
+        self.assertNotEqual(self.run_recovery('both', world='../world').returncode, 0)
+        self.assertNotEqual(subprocess.run(['python3', str(self.helper), '12345678'], capture_output=True).returncode, 0)
+
     def test_evidence_parent_is_private_and_retained(self):
         self.assertNotEqual(self.run_recovery('restore-failure').returncode, 0)
         directories = list(self.root.glob('minecraft-restore-check.*'))
         self.assertEqual(len(directories), 1)
         self.assertEqual(directories[0].stat().st_mode & 0o777, 0o700)
         self.assertTrue((directories[0] / 'restore.log').is_file())
+
+    def test_preflight_requires_current_world_not_legacy(self):
+        checker = runpy.run_path(str(ROOT / 'host/krof-desktop/backup/minecraft/check-minecraft-backup'))
+        old = self.root / 'world'
+        old.mkdir()
+        (old / 'level.dat').write_bytes(b'legacy')
+        with self.assertRaises(RuntimeError):
+            checker['check_active_world'](self.root)
+        current = self.root / 'forever-world'
+        current.mkdir()
+        (current / 'level.dat').write_bytes(b'')
+        with self.assertRaises(RuntimeError):
+            checker['check_active_world'](self.root)
+        (current / 'level.dat').write_bytes(b'current')
+        checker['check_active_world'](self.root)
 
 
 if __name__ == '__main__':

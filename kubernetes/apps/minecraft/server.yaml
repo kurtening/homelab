@@ -32,7 +32,7 @@ spec:
   template:
     metadata:
       annotations:
-        homelab.kurtening.dev/resource-pack-revision: excalibur-26.1_01
+        homelab.kurtening.dev/resource-pack-revision: fresh-textures-2.0.1.1
       labels:
         app.kubernetes.io/name: minecraft
         app.kubernetes.io/component: server
@@ -50,6 +50,34 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: claims-config
+          image: docker.io/itzg/minecraft-server:2026.8.2-java25@sha256:efa878ddb49cf5251b2e5f2ad71b08fd2f7236c1f7907433f6697258b31d2ce4
+          command: ["sh", "-ec", "mkdir -p /data/config && cp /claims/openpartiesandclaims-server.toml /data/config/openpartiesandclaims-server.toml"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 128Mi}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: claims-config, mountPath: /claims, readOnly: true}
+        - name: discord-mod
+          image: docker.io/itzg/minecraft-server:2026.8.2-java25@sha256:efa878ddb49cf5251b2e5f2ad71b08fd2f7236c1f7907433f6697258b31d2ce4
+          command: ["sh", "-ec"]
+          args:
+            - |
+              curl --fail --location --silent --show-error --max-time 60 -o /notification-mod/fabric-discord-notifier-0.5.0.jar https://github.com/WesterhofRoy/fabric-discord-notifier/releases/download/v0.5.0/fabric-discord-notifier-0.5.0.jar
+              echo 'ea737a731d1d4ba983b40266dbabb7d20aad0ebb226408155cbdb487322db851  /notification-mod/fabric-discord-notifier-0.5.0.jar' | sha256sum -c
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 500m, memory: 128Mi}
+          volumeMounts:
+            - {name: notification-mod, mountPath: /notification-mod}
       containers:
         - name: minecraft
           image: docker.io/itzg/minecraft-server:2026.8.2-java25@sha256:efa878ddb49cf5251b2e5f2ad71b08fd2f7236c1f7907433f6697258b31d2ce4
@@ -57,12 +85,6 @@ spec:
           envFrom:
             - configMapRef:
                 name: minecraft-config
-          env:
-            - name: SEED
-              valueFrom:
-                secretKeyRef:
-                  name: minecraft-bootstrap
-                  key: seed
           ports:
             - name: minecraft
               containerPort: 25565
@@ -100,7 +122,33 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+            - {name: notification-mod, mountPath: /notification-mod, readOnly: true}
+            - {name: discord-config, mountPath: /data/config/player-discord-notifier.json, subPath: player-discord-notifier.json, readOnly: true}
+        - name: discord-relay
+          image: docker.io/itzg/minecraft-server:2026.8.2-java25@sha256:efa878ddb49cf5251b2e5f2ad71b08fd2f7236c1f7907433f6697258b31d2ce4
+          command: ["python3", "/app/discord-relay.py"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 128Mi}
+          volumeMounts:
+            - {name: discord-config, mountPath: /app, readOnly: true}
+            - {name: discord-secret, mountPath: /run/secrets/discord, readOnly: true}
       volumes:
+        - name: claims-config
+          configMap:
+            name: minecraft-claims-config
         - name: data
           persistentVolumeClaim:
             claimName: minecraft-data
+        - name: notification-mod
+          emptyDir: {}
+        - name: discord-config
+          configMap:
+            name: minecraft-discord
+        - name: discord-secret
+          secret:
+            secretName: minecraft-discord-webhook
+            optional: true

@@ -23,6 +23,14 @@ def capture(arguments):
     return result.stdout
 
 
+def check_active_world(data):
+    world = data / 'forever-world'
+    metadata = world / 'level.dat'
+    require(world.is_dir() and not world.is_symlink() and metadata.is_file()
+            and not metadata.is_symlink() and metadata.stat().st_size > 0,
+            'nonempty active world metadata missing')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--verify-vault-password', action='store_true')
@@ -39,8 +47,7 @@ def main():
     print('PASS: both expected independent storage mounts are present and writable')
     data = Path('/mnt/data-drive-2tb/homelab/minecraft')
     require(data.is_dir() and not data.is_symlink(), 'world directory unavailable')
-    require((data / 'world/level.dat').is_file()
-            and (data / 'world/level.dat').stat().st_size > 0, 'nonempty world metadata missing')
+    check_active_world(data)
     repository = Path('/mnt/backup/homelab/minecraft/repository')
     require(repository.is_dir() and not repository.is_symlink()
             and (repository / 'config').is_file(), 'existing repository configuration missing; do not initialize blindly')

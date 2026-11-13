@@ -3,9 +3,12 @@ kind: ConfigMap
 metadata:
   name: minecraft-config
 data:
+  VANILLA_REFRESH_STATUS: "READY"
   EULA: "TRUE"
   TYPE: FABRIC
   VERSION: "26.1.2"
+  LEVEL: forever-world
+  SEED: "-4995054936707021313"
   FABRIC_LOADER_VERSION: "0.19.3"
   FABRIC_LAUNCHER_VERSION: "1.1.2"
   MODRINTH_PROJECTS: |-
@@ -13,7 +16,14 @@ data:
     lithium:fQBdPR1m
     ferrite-core:d5ddUdiB
     leaves-us-in-peace:OZtHERvr
+    fabric-language-kotlin:Pd0xrHCw
+    open-parties-and-claims:oT1wWKmM
+    forge-config-api-port:jUe0ucoE
+    ledger:NopA8uYe
+    luckperms:Nq5UZXxA
+    spark:e3hsPc1o
   MODRINTH_DOWNLOAD_DEPENDENCIES: none
+  MODS: /notification-mod/fabric-discord-notifier-0.5.0.jar
   INIT_MEMORY: 1G
   MAX_MEMORY: 4G
   MODE: survival
@@ -30,9 +40,9 @@ data:
   OVERRIDE_SERVER_PROPERTIES: "true"
   ENABLE_ROLLING_LOGS: "true"
   MOTD: Private Minecraft server
-  RESOURCE_PACK: https://cdn.modrinth.com/data/hJAzl1Bs/versions/ScfKVGaF/Excalibur_V26.1_01.zip
-  RESOURCE_PACK_SHA1: f14f03d76c48e6c99a02ccefff0070c4fe3f110b
-  RESOURCE_PACK_ENFORCE: "true"
+  RESOURCE_PACK: https://cdn.modrinth.com/data/p6DhaYT0/versions/w7BtJ3hF/Fresh%20Textures%20v2.0.1.1.zip
+  RESOURCE_PACK_SHA1: 049d6ddf2a36bde4bcd2daa8509ba70da3133e70
+  RESOURCE_PACK_ENFORCE: "false"
   TZ: Asia/Manila
   RCON_CMDS_STARTUP: |-
-    gamerule playersSleepingPercentage 1
+    gamerule minecraft:players_sleeping_percentage 1
