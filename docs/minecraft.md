@@ -19,7 +19,7 @@ bootstrap seed Secret for rollback to the previous world configuration.
 - Tailscale-only TCP access on port `25565`
 - one-player sleep and fast leaf decay
 - native pause after the server has been empty for ten minutes
-- optional [Fresh Textures 2.0.1.1](https://modrinth.com/resourcepack/fresh-textures/version/w7BtJ3hF) adds variations to familiar planks, ores, and foliage
+- [Faithful 64x Release 13](https://modrinth.com/resourcepack/faithful-64x/version/yjAqtxxY) is required for all players
 
 The client pack is not installed on the server. The server downloads these
 exact Modrinth releases at startup:
@@ -194,12 +194,23 @@ minecraft.<tailnet>.ts.net:25565
 
 Use the private tailnet suffix from the Tailscale admin console; never commit it.
 
-The server offers Fresh Textures on join. Choose **Prompt** under **Server Resource
-Packs** in the multiplayer server entry to decide whether to download it.
-Choose **Disabled** to join with your own resource packs. Shaders are a personal
-client setting. When updating the pack, verify the ZIP against the pinned SHA-1.
-Test both accepting and declining the pack with
-the documented Fabulously Optimized client and a vanilla client before merging.
+The server requires Faithful 64x on join. Choose **Prompt** or **Enabled** under
+**Server Resource Packs** in the multiplayer server entry and accept the pack
+to join. Declining it or disabling server resource packs prevents joining.
+Fabulously Optimized remains the client modpack; no additional client mods are
+required for Faithful's textures. Shaders are a personal client setting.
+
+Release 13 is listed for Minecraft 26.1, and its embedded resource-format range
+79–100 includes Minecraft 26.1.2's format 84. Its ZIP is 18,343,100 bytes and is
+pinned by SHA-1 `06f37fc2febd487e5b94a1d93858c50ae8c8ca51`.
+Faithful 64x is by HARYA_ and the Faithful contributors; see the
+[Faithful website](https://faithfulpack.net) and
+[Faithful Resource Pack License](https://faithfulpack.net/license).
+
+When updating the pack, verify the ZIP against the pinned SHA-1. Before merging,
+test that accepting the pack permits joining and declining it prevents joining
+with the documented Fabulously Optimized client and a vanilla client. Check
+texture loading and reconnect behavior with both clients.
 Use an isolated server and world for these tests. Change the Deployment's
 resource-pack revision annotation when updating the pack so Argo CD rolls the
 pod and the container reads the updated ConfigMap.
