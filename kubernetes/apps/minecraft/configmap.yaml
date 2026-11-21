@@ -6,24 +6,22 @@ data:
   VANILLA_REFRESH_STATUS: "READY"
   EULA: "TRUE"
   TYPE: FABRIC
-  VERSION: "26.1.2"
+  VERSION: "26.3"
   LEVEL: forever-world
   SEED: "-4995054936707021313"
-  FABRIC_LOADER_VERSION: "0.19.3"
+  FABRIC_LOADER_VERSION: "0.20.1"
   FABRIC_LAUNCHER_VERSION: "1.1.2"
   MODRINTH_PROJECTS: |-
-    fabric-api:lOQ4tyDD
-    lithium:fQBdPR1m
+    fabric-api:Zns5SSRA
+    lithium:Lal8mJGR
     ferrite-core:d5ddUdiB
-    leaves-us-in-peace:OZtHERvr
-    fabric-language-kotlin:Pd0xrHCw
-    open-parties-and-claims:oT1wWKmM
-    forge-config-api-port:jUe0ucoE
-    ledger:NopA8uYe
-    luckperms:Nq5UZXxA
+    leaves-us-in-peace:apF73NDo
+    fabric-language-kotlin:SKW1BTL3
+    ledger:pxv5cN0d
+    luckperms:DzQPkkXY
     spark:e3hsPc1o
   MODRINTH_DOWNLOAD_DEPENDENCIES: none
-  MODS: /notification-mod/fabric-discord-notifier-0.5.0.jar
+  MODS: ""
   INIT_MEMORY: 1G
   MAX_MEMORY: 4G
   MODE: survival
@@ -40,8 +38,8 @@ data:
   OVERRIDE_SERVER_PROPERTIES: "true"
   ENABLE_ROLLING_LOGS: "true"
   MOTD: Private Minecraft server
-  RESOURCE_PACK: https://cdn.modrinth.com/data/r4GILswZ/versions/yjAqtxxY/Faithful%2064x%20-%20Release%2013.zip
-  RESOURCE_PACK_SHA1: 06f37fc2febd487e5b94a1d93858c50ae8c8ca51
+  RESOURCE_PACK: https://cdn.modrinth.com/data/r4GILswZ/versions/6QfM0mZq/Faithful%2064x%20-%20Release%2015.zip
+  RESOURCE_PACK_SHA1: b0e02f10d2e45151832360557fc84ddcc2b052e9
   RESOURCE_PACK_ENFORCE: "true"
   TZ: Asia/Manila
   RCON_CMDS_STARTUP: |-

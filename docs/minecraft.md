@@ -11,36 +11,38 @@ bootstrap seed Secret for rollback to the previous world configuration.
 
 ## Server contract
 
-- Minecraft Java Edition `26.1.2`
-- Fabric loader `0.19.3`
-- Fabulously Optimized client pack `13.3.0`
+- Minecraft Java Edition `26.3`
+- Fabric loader `0.20.1`
+- Fabulously Optimized client pack `15.0.0-beta.4`
 - survival mode, normal difficulty, PvP disabled
 - online authentication with tailnet membership as the only admission boundary
 - Tailscale-only TCP access on port `25565`
 - one-player sleep and fast leaf decay
 - native pause after the server has been empty for ten minutes
-- [Faithful 64x Release 13](https://modrinth.com/resourcepack/faithful-64x/version/yjAqtxxY) is required for all players
+- [Faithful 64x Release 15](https://modrinth.com/resourcepack/faithful-64x/version/6QfM0mZq) is required for all players
 
 The client pack is not installed on the server. The server downloads these
 exact Modrinth releases at startup:
 
 | Project | Version | Modrinth version ID |
 | --- | --- | --- |
-| Fabric API | `0.154.2+26.1.2` | `lOQ4tyDD` |
-| Lithium | `0.24.6` | `fQBdPR1m` |
+| Fabric API | `0.166.2+26.3` | `Zns5SSRA` |
+| Lithium | `0.26.4` | `Lal8mJGR` |
 | FerriteCore | `9.0.0` | `d5ddUdiB` |
-| Leaves Us In Peace | `1.12.0` | `OZtHERvr` |
-| Fabric Language Kotlin | `1.13.12+kotlin.2.4.0` | `Pd0xrHCw` |
-| Open Parties and Claims | `0.30.3` | `oT1wWKmM` |
-| Forge Config API Port | `26.1.5` | `jUe0ucoE` |
-| Ledger | `1.3.22` | `NopA8uYe` |
-| LuckPerms | `5.5.54` | `Nq5UZXxA` |
+| Leaves Us In Peace | `1.14.0` | `apF73NDo` |
+| Fabric Language Kotlin | `1.14.2+kotlin.2.4.21` | `SKW1BTL3` |
+| Ledger | `1.3.25` | `pxv5cN0d` |
+| LuckPerms | `5.5.85` | `DzQPkkXY` |
 | spark | `1.10.187` | `e3hsPc1o` |
 
-Discord Notifier `0.5.0` is separately pinned to its GitHub release and verified
-by SHA-256 before use. Minecraft, Fabric, the container image, and every mod are intentionally pinned.
-Treat upgrades as reviewed migrations: take a fresh backup, change one version
-set, validate startup and gameplay, and retain the prior pins for rollback.
+**Rollout review:** a manual pre-upgrade checkpoint was completed and the
+operator chose to proceed without further rehearsal. Real-client, gameplay and
+permission checks remain unverified. After rollout, claims and parties are
+disabled; players can modify each other's land and containers. Discord join/leave
+notifications are disabled. Preserve the encrypted webhook Secret and old data.
+The client beta is an explicit exception; server mods are stable releases. Exact
+server-mod SHA-512 hashes are recorded in `scripts/minecraft/server-mod-lock.json`
+and checked by the disposable smoke test; the runtime manifest pins Modrinth IDs.
 
 ## Forever-world upgrades
 
@@ -51,7 +53,7 @@ in newly generated chunks. Do not delete or regenerate chunks to force them in.
 
 1. **Choose a compatible set.** Review official Minecraft and Fabric release and
    migration notes, the Fabric launcher, container image and Java requirements,
-   Fabric API, every pinned server mod and dependency, and the separately pinned
+   Fabric API, every pinned server mod and dependency, and any enabled
    Discord notifier. Review the Fabulously Optimized client, its Fabric version,
    any distributed client-pack components and the required server resource pack.
    Record old and proposed versions, image digests, release/compatibility sources,
@@ -74,7 +76,7 @@ in newly generated chunks. Do not delete or regenerate chunks to force them in.
    notifications, with no public ports or production credentials. Never mount
    the live data or run two servers against it. Confirm the restored world, player
    and mod data are present; test startup, save and clean shutdown, mod migration,
-   claims, permissions and a compatible client where practical. Record evidence
+   applicable permissions and a compatible client where practical. Record evidence
    and any untested behavior; a gzip check or disposable new-world smoke test is
    not a restored-world startup or gameplay test. Resolve failures before rollout.
 4. **Prepare one focused draft PR.** Update the server, Fabric, mods and client
@@ -92,8 +94,8 @@ in newly generated chunks. Do not delete or regenerate chunks to force them in.
    window; a merge can restart the server automatically through Argo CD. Recheck
    the live target, backup freshness, recovery point and absence of active backup
    immediately before merging. After reconciliation, verify startup, private
-   connectivity, the existing world, claims and permissions, and join/leave
-   notifications as permitted; verify a subsequent successful full-data backup.
+   connectivity, the existing world, permissions, and any enabled claims or
+   join/leave notifications as permitted; verify a subsequent successful full-data backup.
    Record PASS, FAIL or PENDING for each check, including unavailable player tests.
    Do not describe acceptance as complete while required checks are pending.
 
@@ -117,18 +119,16 @@ with real players remain unverified. Before changes, recheck backup freshness,
 no active backup and the rollout window; CI does not prove live conditions.
 The old world and bootstrap Secret must remain intact.
 
-The claims configuration is copied into `/data/config` at pod startup and is
-managed by Git. Defaults may be expanded by the mod; local edits to this file
-are overwritten on restart. It sets 256 claim chunks, zero forceloads, the
-default party system and LuckPerms. The default player configuration grants
-party members full access; player-facing changes are limited to claim names and
-colors. Claims, party membership and container protection have not been verified
-with real players. Whitelist changes are separate.
+Open Parties and Claims is removed for 26.3. Existing claim and party data must
+be preserved in the checkpoint; it provides no protection while the mod is absent.
+The untracked world and all its associated data must never be deleted for this upgrade.
 
 For a repeatable startup-only smoke test, run
-`python3 scripts/minecraft/smoke-vanilla.py` on a host with Docker and `gh`.
+`python3 scripts/minecraft/smoke-vanilla.py` on a host with Docker.
 It uses a temporary world, synthetic credentials, bounded CPU and memory, and
-no published ports. It does not test real-player protection or backup recovery.
+no published ports. `python3 scripts/minecraft/smoke-upgrade.py` also starts
+the old and new version sets in sequence on disposable data and checks managed
+JAR removal. Neither test covers real-player behavior or backup recovery.
 
 An isolated test located OPAC data beneath the level directory, Ledger's SQLite
 database beneath the level directory (expected at `/data/forever-world/ledger.sqlite`), and LuckPerms' H2 database in
@@ -248,7 +248,7 @@ reach the operator-managed service. Minecraft's whitelist is disabled, so any
 tailnet member with an authenticated Minecraft account can join. Do not enable
 Funnel, router port forwarding, or a public DNS record.
 
-Players install Fabulously Optimized `13.3.0` for Minecraft `26.1.2`, join the
+Players install Fabulously Optimized `15.0.0-beta.4` for Minecraft `26.3`, join the
 tailnet, and connect to:
 
 ```text
@@ -263,9 +263,8 @@ to join. Declining it or disabling server resource packs prevents joining.
 Fabulously Optimized remains the client modpack; no additional client mods are
 required for Faithful's textures. Shaders are a personal client setting.
 
-Release 13 is listed for Minecraft 26.1, and its embedded resource-format range
-79–100 includes Minecraft 26.1.2's format 84. Its ZIP is 18,343,100 bytes and is
-pinned by SHA-1 `06f37fc2febd487e5b94a1d93858c50ae8c8ca51`.
+Release 15 targets Minecraft 26.3. Its ZIP is 19,411,638 bytes and is
+pinned by SHA-1 `b0e02f10d2e45151832360557fc84ddcc2b052e9`.
 Faithful 64x is by HARYA_ and the Faithful contributors; see the
 [Faithful website](https://faithfulpack.net) and
 [Faithful Resource Pack License](https://faithfulpack.net/license).
@@ -302,58 +301,11 @@ The RCON port is cluster-internal and is not exposed by a Service.
 
 ## Discord player notifications
 
-The Fabric notifier sends join and leave events to a loopback relay; the relay
-alone holds the dedicated Discord webhook. No chat, IP addresses, or server logs
-are forwarded. Delivery is best effort; failures are logged without the URL or
-message. The relay is a separate container, so Discord failures must not stop
-Minecraft. A missing or invalid webhook disables delivery without making the
-relay or game pod unready; the relay reads the projected credential on each
-event. An isolated K3s pod with a dummy game container and the real relay stayed
-ready with the Secret absent and after an invalid Secret was projected. On a
-separate disposable Minecraft world, a synthetic 26.1.2 client joined and left
-through the pinned notifier; the relay accepted both events and did not forward
-a synthetic chat message. The client also joined and left while the webhook was
-missing or invalid and while the relay was stopped. The relay's outbound send
-was mocked; actual Discord delivery and a real-player test remain pending.
-
-**Activation gate:** verify the encrypted Secret contains the intended dedicated
-webhook and that the protected render succeeds before merging or syncing. To
-replace a `PENDING` placeholder, open the channel's settings in Discord, choose
-**Integrations → Webhooks**, create a webhook and copy its URL. In a private
-terminal on the administration laptop, from this checkout on the reviewed
-branch, enter the absolute path of the existing age identity when prompted:
-
-```bash
-read -r -p 'Absolute path to your existing age identity: ' SOPS_AGE_KEY_FILE
-export SOPS_AGE_KEY_FILE
-mise exec -- python3 scripts/minecraft/configure-discord-secret.py
-mise exec -- sops filestatus kubernetes/secrets/minecraft-discord/webhook.sops.yaml
-mise exec -- ./scripts/validate-kubernetes.sh
-```
-
-Paste the webhook URL into each of the two hidden prompts. The helper validates
-and encrypts it, compares the decrypted value silently, and refuses to replace a
-non-placeholder credential. Its temporary plaintext exists only in a mode-0700
-directory outside the worktree. Never paste the URL into chat, shell commands,
-Git, or logs. Check that `sops filestatus` reports `"encrypted":true`, review
-and commit only ciphertext, and verify the Secret Application is healthy before
-the Minecraft rollout. Confirm a current backup, no active backup, and a quiet
-window before merging because the pod restarts.
-
-Verify join and leave with a player and confirm no chat or addresses are sent.
-For rollback, first make a GitOps change setting `MODS: ""` while leaving the
-Kotlin pin and remaining notifier configuration intact. After reconciliation
-and restart, confirm the notifier jar is absent from the retained mods directory
-and the server is healthy. Only then revert the remaining notifier changes.
-Simply deleting the `MODS` setting skips the image's variable-list cleanup and
-can leave the jar behind. A disposable test of the pinned image's `mcopy`
-helper confirmed that an empty list removes its managed jar while leaving an
-unmanaged jar intact. A separate disposable-world test confirmed that the
-pinned server started healthy with the notifier, restarted healthy with the
-notifier jar removed while retaining Kotlin, and restarted healthy again after
-removing Kotlin from the project list. The test did not verify Kotlin's jar was
-removed. Retain the encrypted Secret and separately revoke the Discord webhook
-if no longer needed.
+Notifications are disabled for the 26.3 candidate. The old notifier does not
+declare 26.3 support. The encrypted Secret is retained, but the notifier and
+relay are not mounted or run. `MODS: ""` requests managed-JAR cleanup; verify
+the old notifier and claims JARs are absent on a restored-copy rehearsal before
+rollout. Stop if unmanaged copies remain; never delete unknown live files.
 
 ## Backup installation and verification
 

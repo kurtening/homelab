@@ -51,7 +51,7 @@ def main():
     verified(archive, primary['size'], {'sha512': LOCK['base']['sha512']})
     source = zipfile.ZipFile(io.BytesIO(archive))
     index = json.loads(source.read('modrinth.index.json'))
-    if index['dependencies'] != {'fabric-loader': '0.19.5', 'minecraft': '26.1.2'}:
+    if index['dependencies'] != {'fabric-loader': '0.20.1', 'minecraft': '26.3'}:
         raise ValueError('unexpected base game or loader')
     index['files'] = remove_exclusions(index['files'], LOCK['exclusions'])
     paths = {item['path'].lower() for item in index['files']}
@@ -78,7 +78,7 @@ def main():
         entries[info.filename] = source.read(info)
     entries['overrides/krof-smp-credits.txt'] = (ROOT / 'CREDITS.txt').read_bytes()
     entries['overrides/krof-smp-fabulously-optimized-license.txt'] = (ROOT / 'FABULOUSLY-OPTIMIZED-LICENSE.txt').read_bytes()
-    output = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'dist/krof-smp-1.0.0.mrpack'
+    output = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'dist/krof-smp-2.0.0.mrpack'
     output.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as result:
         for name, data in sorted(entries.items()):

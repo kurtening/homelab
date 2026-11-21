@@ -1,63 +1,51 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
   "base": {
-    "version_id": "glnu8pns",
-    "sha512": "a2e6ae480568187d27ea8c88f0aaa74053da22aaa8764ca178cb416ed303bc010d79b8d6a0916a391c16d6b588358c98a39afb64f837607607bcc485ed24c27c"
+    "version_id": "uEkz53eA",
+    "sha512": "43c0877fc428cba2c1d0d3f4d25e007aeff1ea0d0f2d561d1c0fadbf40c789be4f44b28c2b8befa790b3660d20b4a7b2b0f58fd64ce9e1d9c24da20e4c320b61"
   },
   "exclusions": [
     {
       "project_id": "NNAgCjsB",
-      "version_id": "VhQ51u7a",
+      "version_id": "UWpkLRV5",
       "reason": "Private pack distribution terms were not clear"
     }
   ],
   "additions": [
     {
-      "project_id": "gF3BGWvG",
-      "version_id": "oT1wWKmM",
-      "version": "fabric-26.1.2-0.30.3",
-      "filename": "open-parties-and-claims-fabric-26.1.2-0.30.3.jar",
-      "url": "https://cdn.modrinth.com/data/gF3BGWvG/versions/oT1wWKmM/open-parties-and-claims-fabric-26.1.2-0.30.3.jar",
-      "size": 1886967,
-      "hashes": {
-        "sha1": "2ece7916c2db3eacd4141832cc249088016c68b5",
-        "sha512": "fe10be7dd9df3bf69407f7df2a9adb9c615e0bd9806bac4c5417be3dd2d2d0b178163db85a6877eb1c6b3aa0ca08dd504724e28b55de4d6b95499f88728c5211"
-      }
-    },
-    {
       "project_id": "1bokaNcj",
-      "version_id": "kWf58HtH",
-      "version": "fabric-26.1.2-26.5.0",
-      "filename": "xaerominimap-fabric-26.1.2-26.5.0.jar",
-      "url": "https://cdn.modrinth.com/data/1bokaNcj/versions/kWf58HtH/xaerominimap-fabric-26.1.2-26.5.0.jar",
-      "size": 2216048,
+      "version_id": "MfxfgXaO",
+      "version": "fabric-26.3-26.6.2",
+      "filename": "xaerominimap-fabric-26.3-26.6.2.jar",
+      "url": "https://cdn.modrinth.com/data/1bokaNcj/versions/MfxfgXaO/xaerominimap-fabric-26.3-26.6.2.jar",
+      "size": 2233189,
       "hashes": {
-        "sha512": "5faeb5fad6059d7d7a4d2c8159ecf8e641700ea09652e6a01fcc9e3498654ba5aa778648d57cdd96c04dabe1aa80f2699490facaf67f8f8ada0afe86c74a00e2",
-        "sha1": "f7ed556df35e06ae476c76d98c41ba42e999fbb1"
+        "sha1": "9b44e5718f9258ed32283a391e19a1d46464188a",
+        "sha512": "edf57b80cfe0e0fe229728a6babc3b25c364c07a0406bcdb3a21f73fc225b98954c68ff456c7b1af3182c48512f29d47238ddc501dbfd5eaca0a4609fddcc280"
       }
     },
     {
       "project_id": "NcUtCpym",
-      "version_id": "ZpUBkoFm",
-      "version": "fabric-26.1.2-1.47.2",
-      "filename": "xaeroworldmap-fabric-26.1.2-1.47.2.jar",
-      "url": "https://cdn.modrinth.com/data/NcUtCpym/versions/ZpUBkoFm/xaeroworldmap-fabric-26.1.2-1.47.2.jar",
-      "size": 1478852,
+      "version_id": "VM8lNSSM",
+      "version": "fabric-26.3-1.47.2",
+      "filename": "xaeroworldmap-fabric-26.3-1.47.2.jar",
+      "url": "https://cdn.modrinth.com/data/NcUtCpym/versions/VM8lNSSM/xaeroworldmap-fabric-26.3-1.47.2.jar",
+      "size": 1488669,
       "hashes": {
-        "sha512": "500c9b3b94d94b13115bed70f14d8e793c2dddfc8988f026599deec80bcf9ebbc1a8e0c5aad874b1fd6da7fc3210fd85163dd1aa4e7c20cf54ae83747288ddd4",
-        "sha1": "876d5554fa6771211a4809a972b62fd13d698672"
+        "sha1": "1282302b6c92050cfab7c1db45cf3d92d9a331c5",
+        "sha512": "cac3c0fb3121ddebc7f073571dcbce5f1811ca001ea94ef03c1da667e8a3413144f570c4b593f632358eff98fa138631ed7907fd1bd5da7d43c037ea782125fb"
       }
     },
     {
       "project_id": "nvQzSEkH",
-      "version_id": "23eHNK54",
-      "version": "26.1.2+fabric",
-      "filename": "Jade-mc26.1-Fabric-26.1.2.jar",
-      "url": "https://cdn.modrinth.com/data/nvQzSEkH/versions/23eHNK54/Jade-mc26.1-Fabric-26.1.2.jar",
-      "size": 1012163,
+      "version_id": "71CTWqdE",
+      "version": "26.3.5+fabric",
+      "filename": "Jade-mc26.3-Fabric-26.3.5.jar",
+      "url": "https://cdn.modrinth.com/data/nvQzSEkH/versions/71CTWqdE/Jade-mc26.3-Fabric-26.3.5.jar",
+      "size": 1092685,
       "hashes": {
-        "sha512": "41f0357c1c23406d92e64c300aba8b07d264d94bc89467b6a1bb2982facc1187c94f681790a173fb106f1411061b38ba3c7fb68f195c3e75cb9b74321487552e",
-        "sha1": "82a68c468e70878664460b94c32b8510274db9e2"
+        "sha1": "da61413c586c8918c14e2bbfdc808ce2d56ea9df",
+        "sha512": "2e7331e62eb6658268ae92dc42de8b469f50dd6c6a9d2546a6f649bae97c2cdfd8d4c1560948cf46269175d2c79c6c47a36a02685e39d476768d18fbb2a28703"
       }
     }
   ]
