@@ -10,7 +10,7 @@ build = runpy.run_path(str(ROOT / 'build.py'))
 
 class SelectionTests(unittest.TestCase):
     def test_removes_exactly_pinned_entity_culling(self):
-        entity = {'path': 'mods/culling.jar', 'downloads': ['https://cdn.modrinth.com/data/NNAgCjsB/versions/VhQ51u7a/culling.jar']}
+        entity = {'path': 'mods/culling.jar', 'downloads': ['https://cdn.modrinth.com/data/NNAgCjsB/versions/UWpkLRV5/culling.jar']}
         other = {'path': 'mods/other.jar', 'downloads': ['https://cdn.modrinth.com/data/other/versions/one/other.jar']}
         exclusions = build['LOCK']['exclusions']
         self.assertEqual(build['remove_exclusions']([entity, other], exclusions), [other])

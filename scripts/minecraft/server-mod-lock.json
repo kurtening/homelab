@@ -1,0 +1,50 @@
+[
+  {
+    "version_id": "Zns5SSRA",
+    "version": "0.166.2+26.3",
+    "filename": "fabric-api-0.166.2+26.3.jar",
+    "sha512": "fb686a9fa923248328107a12498229d6951e316257f18b7d0e4cbd6885ba447ed50a44076a8a5ba47cfe2043b329db3587ab000aeab1face26b2587a5d4ba6b5"
+  },
+  {
+    "version_id": "Lal8mJGR",
+    "version": "mc26.3-0.26.4-fabric",
+    "filename": "lithium-fabric-0.26.4+mc26.3.jar",
+    "sha512": "033f85813b0bcafe848a55dd741b9b1a30685dcdf774a922507bf63716b16bfd0fc12856ffc4ca3c76a36f6dc73310a7dfdc4b6dc9e35c21a4482627b1d30b85"
+  },
+  {
+    "version_id": "d5ddUdiB",
+    "version": "9.0.0-fabric",
+    "filename": "ferritecore-9.0.0-fabric.jar",
+    "sha512": "d81fa97e11784c19d42f89c2f433831d007603dd7193cee45fa177e4a6a9c52b384b198586e04a0f7f63cd996fed713322578bde9a8db57e1188854ae5cbe584"
+  },
+  {
+    "version_id": "apF73NDo",
+    "version": "1.14.0+MC26.3.x",
+    "filename": "leaves_us_in_peace-1.14.0+MC26.3.x.jar",
+    "sha512": "3411fd4ff7e1213a8aff36c05ec821e5f9f6fdac720be37a442b12c1e573c2614d0db0094746f4b2e59d9569452a7b6e61d752851a5e5dc568b0473e43041404"
+  },
+  {
+    "version_id": "SKW1BTL3",
+    "version": "1.14.2+kotlin.2.4.21",
+    "filename": "fabric-language-kotlin-1.14.2+kotlin.2.4.21.jar",
+    "sha512": "7fb475c4a7e7bdf8d0aca4b5798a58a354c51443d5b1fbde3e8cf34dfbf7191ef4238b5f07d08ec9490ec180b371624523326c3ad45d4ed2b2be541de9407e5d"
+  },
+  {
+    "version_id": "pxv5cN0d",
+    "version": "1.3.25",
+    "filename": "ledger-1.3.25.jar",
+    "sha512": "f32e44728da225ddadf899f26a0892aa13555b56dbbb44278e1c40a8856d9b40d5cb7dd4af81447631d25de3ad532f95c8a5b98e388d2fa141ad2da7ec8c2d49"
+  },
+  {
+    "version_id": "DzQPkkXY",
+    "version": "v5.5.85-fabric",
+    "filename": "LuckPerms-Fabric-5.5.85.jar",
+    "sha512": "37de9e16272b6bbf82f422ddf012fa810d32c617c5621919157b662b4edfe956a870c5bc3ca4b05f32c90d7135f0ac2580ea16cd7c481c26a04778f639c3f89c"
+  },
+  {
+    "version_id": "e3hsPc1o",
+    "version": "1.10.187-fabric",
+    "filename": "spark-1.10.187-fabric.jar",
+    "sha512": "c74bf5d5a16b2445ec6ea717eac756412b272a8015e91f91a7bf5a27e6f2f99c4a11878d434510f941f37b0344b3a7d1ba0dd6c34e80642762c48fb6e9a93894"
+  }
+]

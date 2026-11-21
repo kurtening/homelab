@@ -39,20 +39,18 @@ verification or live-installation report. It performs no network requests.
 | GitHub Action | `gruntwork-io/terragrunt-action@v3.4.1` | tag only | [.github/workflows/iac-validation.yml](../.github/workflows/iac-validation.yml) |
 | GitHub Action | `jdx/mise-action@v4.3.0` | tag only | [.github/workflows/kubernetes-validation.yaml](../.github/workflows/kubernetes-validation.yaml) |
 | Helm chart: tailscale-operator | `1.98.9` | chart version | [kubernetes/clusters/krof-desktop/tailscale-operator-application.yaml](../kubernetes/clusters/krof-desktop/tailscale-operator-application.yaml) |
-| Minecraft client pack | `13.3.0` | documented client contract | [docs/minecraft.md](../docs/minecraft.md) |
-| Minecraft mod: fabric-api | `lOQ4tyDD` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
-| Minecraft mod: fabric-language-kotlin | `Pd0xrHCw` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
+| Minecraft client pack | `15.0.0-beta.4` | documented client contract | [docs/minecraft.md](../docs/minecraft.md) |
+| Minecraft mod: fabric-api | `Zns5SSRA` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
+| Minecraft mod: fabric-language-kotlin | `SKW1BTL3` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
 | Minecraft mod: ferrite-core | `d5ddUdiB` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
-| Minecraft mod: forge-config-api-port | `jUe0ucoE` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
-| Minecraft mod: leaves-us-in-peace | `OZtHERvr` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
-| Minecraft mod: ledger | `NopA8uYe` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
-| Minecraft mod: lithium | `fQBdPR1m` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
-| Minecraft mod: luckperms | `Nq5UZXxA` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
-| Minecraft mod: open-parties-and-claims | `oT1wWKmM` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
+| Minecraft mod: leaves-us-in-peace | `apF73NDo` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
+| Minecraft mod: ledger | `pxv5cN0d` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
+| Minecraft mod: lithium | `Lal8mJGR` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
+| Minecraft mod: luckperms | `DzQPkkXY` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
 | Minecraft mod: spark | `e3hsPc1o` | Modrinth version ID | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
 | Minecraft: FABRIC_LAUNCHER_VERSION | `1.1.2` | version | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
-| Minecraft: FABRIC_LOADER_VERSION | `0.19.3` | version | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
-| Minecraft: VERSION | `26.1.2` | version | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
+| Minecraft: FABRIC_LOADER_VERSION | `0.20.1` | version | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
+| Minecraft: VERSION | `26.3` | version | [kubernetes/apps/minecraft/configmap.yaml](../kubernetes/apps/minecraft/configmap.yaml) |
 | OpenTofu provider: registry.opentofu.org/integrations/github | `6.13.0` | lockfile version and checksums | [infrastructure/live/github/homelab/.terraform.lock.hcl](../infrastructure/live/github/homelab/.terraform.lock.hcl) |
 | Validation Python package | `PyYAML==6.0.3` | version | [scripts/requirements-monitoring.txt](../scripts/requirements-monitoring.txt) |
 
