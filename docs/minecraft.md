@@ -42,6 +42,69 @@ by SHA-256 before use. Minecraft, Fabric, the container image, and every mod are
 Treat upgrades as reviewed migrations: take a fresh backup, change one version
 set, validate startup and gameplay, and retain the prior pins for rollback.
 
+## Forever-world upgrades
+
+Review releases during the existing monthly maintenance window; do not enable
+automatic upgrades. Preserve `forever-world` across releases. Upgrades do not
+regenerate explored chunks: new terrain-generation features generally appear
+in newly generated chunks. Do not delete or regenerate chunks to force them in.
+
+1. **Choose a compatible set.** Review official Minecraft and Fabric release and
+   migration notes, the Fabric launcher, container image and Java requirements,
+   Fabric API, every pinned server mod and dependency, and the separately pinned
+   Discord notifier. Review the Fabulously Optimized client, its Fabric version,
+   any distributed client-pack components and the required server resource pack.
+   Record old and proposed versions, image digests, release/compatibility sources,
+   and any world or mod-data migration notes. Defer the upgrade if a required
+   component or compatible client is unavailable or its compatibility is unknown.
+2. **Establish the recovery point.** Verify the kube context, host and cluster
+   health, retained PV/PVC, actual data and independent backup mounts, free space
+   and inodes, and that no backup is running. Verify access to the existing Restic
+   password and its independent recovery copy without exposing values. In the
+   agreed quiet window, take a fresh full-data snapshot using the installed backup
+   procedure below; verify its successful completion, source and inclusion of
+   `forever-world` and global mod data. Record the exact snapshot ID privately.
+   Ensure it remains recoverable throughout the upgrade and rollback window;
+   scheduled retention can remove snapshots, so verify retention or preserve a
+   separate protected copy before relying on it. Do not change retention or prune
+   data as an incidental upgrade step.
+3. **Rehearse on a restored copy.** Use the recovery verifier below with that
+   explicit snapshot ID, then run the proposed version set against a separate
+   copy of the restored full data directory, isolated from production and external
+   notifications, with no public ports or production credentials. Never mount
+   the live data or run two servers against it. Confirm the restored world, player
+   and mod data are present; test startup, save and clean shutdown, mod migration,
+   claims, permissions and a compatible client where practical. Record evidence
+   and any untested behavior; a gzip check or disposable new-world smoke test is
+   not a restored-world startup or gameplay test. Resolve failures before rollout.
+4. **Prepare one focused draft PR.** Update the server, Fabric, mods and client
+   pins as a compatible set, including the notifier URL, checksum and paths if it
+   changes. Update the client contract and generated version inventory, and check
+   resource-pack compatibility and component distribution terms. The plain
+   `minecraft-config` ConfigMap is consumed as environment variables: a change
+   to it alone does not restart the pod. Change a pod-template revision annotation
+   in `server.yaml` whenever such configuration changes, and verify the rendered
+   Deployment changes. Run Kubernetes validation, Minecraft-specific checks,
+   client-pack tests/build and full diff checks. Record the rehearsal, version
+   sources, remaining gaps and rollback prerequisites in the PR. Retain the
+   previous Git revision, client pack and checkpoint.
+5. **Roll out and accept.** Obtain explicit merge authorization and agree an idle
+   window; a merge can restart the server automatically through Argo CD. Recheck
+   the live target, backup freshness, recovery point and absence of active backup
+   immediately before merging. After reconciliation, verify startup, private
+   connectivity, the existing world, claims and permissions, and join/leave
+   notifications as permitted; verify a subsequent successful full-data backup.
+   Record PASS, FAIL or PENDING for each check, including unavailable player tests.
+   Do not describe acceptance as complete while required checks are pending.
+
+If the upgrade fails, stop player activity and preserve the upgraded state for
+diagnosis. A Git revert alone cannot undo world or mod database migrations. Stop
+the Deployment through GitOps, retain the PV/PVC, restore the matching pre-upgrade
+world and global data to an isolated location, and inspect it. Obtain explicit
+approval before replacing production data, then restore the matching data and
+previous version set while the server is stopped. Never overwrite a live world or
+discard the failed state, checkpoint or old client pack as incidental cleanup.
+
 ## Current world and recovery
 
 The live world is `forever-world` with its public seed in the ConfigMap. The
