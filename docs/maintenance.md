@@ -64,7 +64,9 @@ reviewed change, not an incidental upgrade in this PR.
    monitoring and host backup tools. Assess exposure and compatibility, including
    private-only access and the gaming host's constraints; a newer tag is not an
    automatic upgrade instruction. Keep detailed private configuration out of
-   public issues. If no update is needed, record that decision and review date.
+   public issues. Review Minecraft and its Fabric compatibility set using the
+   [forever-world upgrade checklist](minecraft.md#forever-world-upgrades). If no
+   update is needed, record that decision and review date.
 5. **Review credential recovery access, not values.** Check vault access and
    custody of separate app Restic passwords, age identity, Grafana administrator,
    K3s token/private configuration and external-provider/Tailscale recovery.
@@ -88,9 +90,10 @@ database/library checkpoint; reverting images cannot undo schema migrations.
 
 Jellyfin upgrades preserve its shared SQLite/retained-storage migration contract;
 never start stopped Compose against a running Kubernetes instance. Minecraft
-updates review server/Fabric/mod/client compatibility together and need a world
-checkpoint. Monitoring updates must retain its privacy, retention, notification
-and gaming resource gates; do not upgrade the Tailscale operator incidentally.
+updates follow the [forever-world upgrade checklist](minecraft.md#forever-world-upgrades),
+including a restored-copy rehearsal and a full-data checkpoint. Monitoring
+updates must retain its privacy, retention, notification and gaming resource
+gates; do not upgrade the Tailscale operator incidentally.
 K3s/host updates require their own maintenance/recovery plan, not an application
 image PR. No broad package upgrade is part of this routine's implementation.
 
