@@ -35,8 +35,9 @@ exact Modrinth releases at startup:
 | LuckPerms | `5.5.85` | `DzQPkkXY` |
 | spark | `1.10.187` | `e3hsPc1o` |
 
-**Upgrade pending:** `VANILLA_REFRESH_STATUS` intentionally blocks CI until the
-full-data recovery and rollout gates below are complete. Claims and parties are
+**Rollout review:** a manual pre-upgrade checkpoint was completed and the
+operator chose to proceed without further rehearsal. Real-client, gameplay and
+permission checks remain unverified. After rollout, claims and parties are
 disabled; players can modify each other's land and containers. Discord join/leave
 notifications are disabled. Preserve the encrypted webhook Secret and old data.
 The client beta is an explicit exception; server mods are stable releases. Exact
